@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>仙交学习工具 · 管理</title>
+  <link rel="stylesheet" href="manager.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <strong>仙交学习工具</strong>
+      <span>XJTU Learning Tools</span>
+    </div>
+    <nav aria-label="主要功能">
+      <button class="nav-button active" data-view="resources" type="button">批量下载</button>
+      <button class="nav-button" data-view="courses" type="button">课程</button>
+      <button class="nav-button" data-view="tasks" type="button">下载任务 <span id="nav-task-count"></span></button>
+      <button class="nav-button" data-view="settings" type="button">设置</button>
+    </nav>
+  </header>
+
+  <main>
+    <div id="notice" class="notice" role="status" aria-live="polite"></div>
+
+    <section id="view-resources" class="view">
+      <div class="toolbar">
+        <div>
+          <h1>批量下载</h1>
+          <p id="catalog-meta" class="muted">尚未扫描课程</p>
+        </div>
+        <div class="toolbar-actions">
+          <label>回放轨道
+            <select id="batch-track">
+              <option value="ENCODER">课件画面</option>
+              <option value="INSTRUCTOR">教师画面</option>
+              <option value="BOTH">两路分别下载</option>
+            </select>
+          </label>
+          <button id="scan-courses" class="button secondary" type="button">重新扫描</button>
+          <button id="download-selected" class="button primary queue-selected" type="button">下载所选文件</button>
+        </div>
+      </div>
+      <div class="search-bar">
+        <input id="resource-search" type="search" placeholder="搜索课程、活动或文件名" aria-label="搜索课程文件">
+      </div>
+      <details id="todo-panel" class="todo-panel" hidden>
+        <summary id="todo-summary">学习待办</summary>
+        <div id="todo-list"></div>
+      </details>
+      <details class="direct-adder">
+        <summary>添加媒体直链</summary>
+        <div class="direct-form">
+          <input id="direct-url" type="url" placeholder="粘贴 media.xjtu.edu.cn/download/file/... 地址" aria-label="媒体文件直链">
+          <button id="download-direct" class="button secondary" type="button">立即下载</button>
+        </div>
+      </details>
+      <div id="catalog-empty" class="empty-state">
+        <h2>从当前账号生成完整文件清单</h2>
+        <p>扫描课程回放、课件、公告、作业附件和页面嵌入文件。</p>
+      </div>
+      <div id="catalog" class="catalog"></div>
+    </section>
+
+    <section id="view-courses" class="view" hidden>
+      <div class="course-browser">
+        <aside id="course-list" class="course-list" aria-label="课程列表"></aside>
+        <section class="course-detail">
+          <div class="course-detail-head">
+            <div>
+              <h1 id="selected-course-name">选择一门课程</h1>
+              <p id="selected-course-meta" class="muted">文件按来源分类显示</p>
+            </div>
+            <button id="download-course-selected" class="button primary queue-selected" type="button">下载所选文件</button>
+          </div>
+          <div id="course-files" class="course-files">
+            <div class="empty-state">请先从左侧选择课程。</div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section id="view-tasks" class="view" hidden>
+      <div class="toolbar">
+        <div>
+          <h1>下载任务</h1>
+          <p id="task-summary" class="muted">临时地址与令牌不写入任务记录。</p>
+        </div>
+        <button id="clear-finished" class="button secondary" type="button">清除已结束任务</button>
+      </div>
+      <div class="task-head" aria-hidden="true">
+        <span>文件</span><span>状态</span><span>进度</span><span>操作</span>
+      </div>
+      <div id="tasks"></div>
+      <div id="tasks-empty" class="empty-state"><p>还没有下载任务。</p></div>
+    </section>
+
+    <section id="view-settings" class="view" hidden>
+      <div class="settings-block">
+        <h1>下载设置</h1>
+        <label class="setting-row">
+          <span>同时下载任务</span>
+          <select id="setting-concurrency"><option value="1">1 个</option><option value="2">2 个</option></select>
+        </label>
+        <label class="setting-row">
+          <span>下载目录</span>
+          <input id="setting-root" value="XJTU" maxlength="60">
+        </label>
+        <p class="muted">目录位于浏览器默认下载位置之下，文件按课程和来源继续分目录。</p>
+        <button id="save-settings" class="button primary" type="button">保存设置</button>
+      </div>
+      <div class="settings-block">
+        <h2>官方服务</h2>
+        <div class="link-list">
+          <a href="https://lms.xjtu.edu.cn/" target="_blank" rel="noreferrer">思源学堂</a>
+          <a href="https://zyxf.top" target="_blank" rel="noreferrer">仲英学辅</a>
+          <a href="https://xkfw.xjtu.edu.cn" target="_blank" rel="noreferrer">选课服务</a>
+          <a href="https://ywtb.xjtu.edu.cn" target="_blank" rel="noreferrer">一网通办</a>
+          <a href="https://webvpn.xjtu.edu.cn" target="_blank" rel="noreferrer">WebVPN</a>
+        </div>
+      </div>
+      <div class="settings-block">
+        <h2>专用工具</h2>
+        <div class="link-list vertical">
+          <a href="https://github.com/yan-xiaoo/XJTUToolBox" target="_blank" rel="noreferrer">XJTUToolBox · 桌面成绩、考勤与空教室</a>
+          <a href="https://github.com/yeliqin666/xjtu-toolbox-android" target="_blank" rel="noreferrer">岱宗盒子 · Android 综合校园工具</a>
+          <a href="https://github.com/Hz162/XJTU-Course-Genius" target="_blank" rel="noreferrer">XJTU-Course-Genius · 选课辅助</a>
+        </div>
+      </div>
+      <div class="settings-block">
+        <h2>本地数据</h2>
+        <p>课程清单和任务记录仅保存在当前浏览器。</p>
+        <button id="clear-catalog" class="button danger" type="button">清除课程清单</button>
+      </div>
+    </section>
+  </main>
+  <script src="manager.js" type="module"></script>
+</body>
+</html>

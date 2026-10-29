@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "仙交学习工具 XJTU Learning Tools",
+  "short_name": "仙交学习",
+  "version": "0.3.0",
+  "description": "扫描、搜索并批量保存思源学堂与仲英学辅的课程学习资源。",
+  "permissions": ["downloads", "storage", "scripting"],
+  "host_permissions": [
+    "https://lms.xjtu.edu.cn/*",
+    "https://rms-v5.xjtu.edu.cn/*",
+    "https://media.xjtu.edu.cn/*",
+    "https://review-class.xjtu.edu.cn/*",
+    "https://zyxf.top/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "仙交学习工具",
+    "default_popup": "popup/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://lms.xjtu.edu.cn/*"],
+      "js": ["content/lms.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "manager/manager.html"
+}

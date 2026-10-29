@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>仙交学习工具</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <strong>仙交学习工具</strong>
+      <span>XJTU Learning Tools</span>
+    </div>
+    <button id="open-manager" class="header-action" type="button">管理</button>
+  </header>
+
+  <main>
+    <div id="notice" class="notice" role="status" aria-live="polite"></div>
+    <section id="loading" class="section">
+      <p class="muted">正在识别当前页面…</p>
+    </section>
+    <section id="unsupported" class="section" hidden>
+      <h1>当前页面不可用</h1>
+      <p>请打开思源学堂的课程回放或 PDF 资料页。</p>
+      <button id="open-lms" class="button secondary" type="button">打开思源学堂</button>
+    </section>
+    <section id="replay" class="section" hidden>
+      <div class="section-label">课程回放</div>
+      <h1 id="replay-title"></h1>
+      <p id="replay-course" class="muted"></p>
+      <fieldset id="track-list" class="track-list">
+        <legend>选择要保存的画面</legend>
+      </fieldset>
+      <button id="download-replay" class="button primary" type="button">下载所选轨道</button>
+    </section>
+    <section id="materials" class="section" hidden>
+      <div class="section-label">PDF 课件</div>
+      <div id="material-list" class="row-list"></div>
+    </section>
+    <section id="course-only" class="section" hidden>
+      <h1>课程页面已识别</h1>
+      <p class="muted">可扫描当前账号课程，或打开具体回放与资料活动。</p>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <button id="scan-courses" class="text-button" type="button">扫描全部课程</button>
+    <button id="show-tasks" class="text-button" type="button">下载任务 <span id="task-count"></span></button>
+  </footer>
+  <script src="popup.js" type="module"></script>
+</body>
+</html>
