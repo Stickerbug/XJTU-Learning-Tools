@@ -60,6 +60,8 @@ let livePortalSites = [];
 let portalLoading = false;
 let campusData = null;
 let campusLoading = false;
+let scheduleView = 'list';
+let scheduleWeekCursor = getScheduleMonday(new Date());
 let classroomCodes = { campuses: [], buildings: [] };
 let classroomData = null;
 let classroomLoading = false;
@@ -185,19 +187,386 @@ function campusItem(title, details) {
   return row;
 }
 
+function getScheduleMonday(value) {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  const day = date.getDay() || 7;
+  date.setDate(date.getDate() - day + 1);
+  return date;
+}
+
+function scheduleWeekday(value) {
+  const text = String(value ?? '').trim().toLowerCase();
+  const number = text.match(/[1-7]/)?.[0];
+  if (number && !/周|星期|week/.test(text)) return Number(number);
+  if (/^(?:0|日|天|星期日|周日|sunday)$/.test(text)) return 7;
+  for (const [name, day] of Object.entries({ '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 7, '天': 7, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7 })) {
+    if (text.includes(name)) return day;
+  }
+  return null;
+}
+
+function scheduleSectionRange(value) {
+  const values = String(value ?? '').match(/\d+/g)?.map(Number).filter(item => item >= 1 && item <= 11) || [];
+  if (!values.length) return null;
+  return { start: Math.min(...values), end: Math.max(...values) };
+}
+
+function scheduleWeekLabel(date) {
+  const end = new Date(date);
+  end.setDate(end.getDate() + 6);
+  const format = value => value.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+  return `${format(date)} – ${format(end)}`;
+}
+
+function renderScheduleList(container, rows) {
+  container.replaceChildren();
+  for (const row of rows) {
+    const day = scheduleWeekday(row.weekday);
+    const dayLabel = day ? `周${['一', '二', '三', '四', '五', '六', '日'][day - 1]}` : row.weekday;
+    container.append(campusItem(row.course, [dayLabel, row.section, row.classroom, row.teacher, row.weeks]));
+  }
+  if (!rows.length) container.append(campusEmpty('暂无课表数据'));
+}
+
+function syncScheduleView() {
+  const list = $('#campus-schedule');
+  const week = $('#campus-schedule-week');
+  const toolbar = $('#schedule-week-toolbar');
+  const label = $('#schedule-week-label');
+  if (!list || !week || !toolbar || !label) return;
+  const showWeek = scheduleView === 'week';
+  for (const button of document.querySelectorAll('[data-schedule-view]')) {
+    button.classList.toggle('active', button.dataset.scheduleView === scheduleView);
+  }
+  list.hidden = showWeek;
+  week.hidden = !showWeek;
+  toolbar.hidden = !showWeek;
+  if (!showWeek) return;
+  label.textContent = scheduleWeekLabel(scheduleWeekCursor);
+  week.replaceChildren();
+  const grid = document.createElement('div');
+  grid.className = 'schedule-week-grid';
+  const corner = document.createElement('div');
+  corner.className = 'schedule-week-corner';
+  grid.append(corner);
+  for (let day = 1; day <= 7; day += 1) {
+    const cell = document.createElement('div');
+    cell.className = 'schedule-week-day';
+    const date = new Date(scheduleWeekCursor);
+    date.setDate(date.getDate() + day - 1);
+    cell.textContent = `周${['一', '二', '三', '四', '五', '六', '日'][day - 1]} ${date.getMonth() + 1}/${date.getDate()}`;
+    grid.append(cell);
+  }
+  const cells = new Map();
+  for (let section = 1; section <= 11; section += 1) {
+    const marker = document.createElement('div');
+    marker.className = 'schedule-week-section';
+    marker.textContent = `第${section}节`;
+    grid.append(marker);
+    for (let day = 1; day <= 7; day += 1) {
+      const cell = document.createElement('div');
+      cell.className = 'schedule-week-cell';
+      cells.set(`${day}:${section}`, cell);
+      grid.append(cell);
+    }
+  }
+  for (const row of campusData?.schedule || []) {
+    const day = scheduleWeekday(row.weekday);
+    const range = scheduleSectionRange(row.section);
+    if (!day || !range) continue;
+    const cell = cells.get(`${day}:${range.start}`);
+    if (!cell) continue;
+    const item = document.createElement('div');
+    item.className = 'schedule-week-item';
+    const title = document.createElement('strong');
+    title.textContent = row.course || '未命名课程';
+    const meta = document.createElement('span');
+    meta.textContent = [row.classroom, row.teacher, row.weeks].filter(Boolean).join(' · ');
+    item.append(title, meta);
+    cell.append(item);
+  }
+  week.append(grid);
+}
+
+function icsEscape(value) {
+  return String(value || '').replace(/[\\;,]/g, match => `\\${match}`).replace(/\r?\n/g, '\\n');
+}
+
+function icsDate(date, minutes) {
+  const value = new Date(date);
+  value.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+  const pad = number => String(number).padStart(2, '0');
+  return `${value.getFullYear()}${pad(value.getMonth() + 1)}${pad(value.getDate())}T${pad(value.getHours())}${pad(value.getMinutes())}00`;
+}
+
+async function exportScheduleIcs() {
+  const rows = campusData?.schedule || [];
+  if (!rows.length) return showNotice('请先读取课表');
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//XJTU Learning Tools//Campus//CN', 'CALSCALE:GREGORIAN'];
+  for (const [index, row] of rows.entries()) {
+    const weekday = scheduleWeekday(row.weekday);
+    const range = scheduleSectionRange(row.section);
+    if (!weekday || !range) continue;
+    const start = PERIOD_STARTS[range.start - 1] ?? PERIOD_STARTS[0];
+    const end = (PERIOD_STARTS[Math.min(10, range.end - 1)] ?? start) + 45;
+    const date = new Date(scheduleWeekCursor);
+    date.setDate(date.getDate() + weekday - 1);
+    lines.push('BEGIN:VEVENT', `UID:xjtu-${Date.now()}-${index}@learning-tools`, `DTSTART:${icsDate(date, start)}`, `DTEND:${icsDate(date, end)}`, `SUMMARY:${icsEscape(row.course || '课程')}`);
+    const location = [row.classroom, row.teacher].filter(Boolean).join(' · ');
+    if (location) lines.push(`LOCATION:${icsEscape(location)}`);
+    if (row.weeks) lines.push(`DESCRIPTION:${icsEscape(`周次：${row.weeks}`)}`);
+    lines.push('END:VEVENT');
+  }
+  lines.push('END:VCALENDAR');
+  const url = URL.createObjectURL(new Blob([`${lines.join('\r\n')}\r\n`], { type: 'text/calendar;charset=utf-8' }));
+  try {
+    await chrome.downloads.download({ url, filename: `${safeFilePart(state.settings.root || 'XJTU')}/课表_${localDateValue(scheduleWeekCursor)}.ics`, saveAs: true });
+    showNotice('课表 ICS 已导出', 'success');
+  } catch (error) {
+    showNotice(error.message || '导出失败');
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+}
+
+function numericValue(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const text = String(value ?? '').trim().replace(/,/g, '');
+  if (!text) return null;
+  const match = text.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+  const number = Number(match[0]);
+  return Number.isFinite(number) ? number : null;
+}
+
+function gradeStatus(row, score, gpa) {
+  const text = String(row.score ?? '').trim();
+  if (!text || /未出|未录|待评|待录|待定|缓考|缺考|取消|免修|无成绩|—|^-$|^n\/?a$/i.test(text)) return 'pending';
+  if (/不及格|不合格|挂科/.test(text) || (score != null && score < 60) || (gpa != null && gpa < 1)) return 'low';
+  return 'passed';
+}
+
+function summarizeGrades(rows) {
+  const items = rows.map(row => {
+    const score = numericValue(row.score);
+    const credit = numericValue(row.credit);
+    const gpa = numericValue(row.gpa);
+    const status = gradeStatus(row, score, gpa);
+    return {
+      row,
+      score,
+      credit,
+      gpa,
+      status,
+      weight: credit != null && credit > 0 ? credit : 1
+    };
+  });
+  const scored = items.filter(item => item.score != null && item.status !== 'pending');
+  const gpaItems = items.filter(item => item.gpa != null && item.status !== 'pending');
+  const weightedAverage = values => {
+    if (!values.length) return null;
+    const totalWeight = values.reduce((sum, item) => sum + item.weight, 0);
+    return totalWeight ? values.reduce((sum, item) => sum + item.value * item.weight, 0) / totalWeight : null;
+  };
+  const scoreAverage = weightedAverage(scored.map(item => ({ ...item, value: item.score })));
+  const gpaAverage = weightedAverage(gpaItems.map(item => ({ ...item, value: item.gpa })));
+  return {
+    items,
+    total: items.length,
+    completed: items.filter(item => item.status !== 'pending').length,
+    pending: items.filter(item => item.status === 'pending').length,
+    low: items.filter(item => item.status === 'low').length,
+    weightedAverage: scoreAverage,
+    averageGpa: gpaAverage
+  };
+}
+
+function renderGradeSummary(container, stats) {
+  container.replaceChildren();
+  const cards = [
+    ['加权平均分', stats.weightedAverage == null ? '—' : stats.weightedAverage.toFixed(2), '按学分加权'],
+    ['平均绩点', stats.averageGpa == null ? '—' : stats.averageGpa.toFixed(2), '按学分加权'],
+    ['未出成绩', stats.pending, stats.pending ? '门课程待更新' : '暂无待更新'],
+    ['低分课程', stats.low, stats.low ? '成绩低于 60 或绩点低于 1' : '暂无低分课程']
+  ];
+  for (const [label, value, note] of cards) {
+    const card = document.createElement('div');
+    card.className = 'summary-card grade-summary-card';
+    const number = document.createElement('strong');
+    number.textContent = String(value);
+    const text = document.createElement('span');
+    text.textContent = label;
+    const hint = document.createElement('small');
+    hint.textContent = note;
+    card.append(number, text, hint);
+    container.append(card);
+  }
+}
+
+function renderGradeTable(container, stats) {
+  container.replaceChildren();
+  if (!stats.items.length) {
+    container.append(campusEmpty('暂无成绩数据'));
+    return;
+  }
+  const table = document.createElement('table');
+  table.className = 'grade-table';
+  const caption = document.createElement('caption');
+  caption.textContent = '课程成绩明细';
+  table.append(caption);
+  const head = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  for (const label of ['课程', '成绩', '学分', '绩点', '学期', '状态']) {
+    const cell = document.createElement('th');
+    cell.scope = 'col';
+    cell.textContent = label;
+    headRow.append(cell);
+  }
+  head.append(headRow);
+  const body = document.createElement('tbody');
+  for (const item of stats.items) {
+    const row = document.createElement('tr');
+    if (item.status === 'low') row.className = 'is-low';
+    if (item.status === 'pending') row.className = 'is-pending';
+    const valueOrDash = value => value == null || String(value).trim() === '' ? '—' : value;
+    const values = [
+      valueOrDash(item.row.course) === '—' ? '未命名课程' : valueOrDash(item.row.course),
+      valueOrDash(item.row.score),
+      valueOrDash(item.row.credit),
+      valueOrDash(item.row.gpa),
+      valueOrDash(item.row.term)
+    ];
+    for (const value of values) {
+      const cell = document.createElement('td');
+      cell.textContent = String(value);
+      row.append(cell);
+    }
+    const status = document.createElement('td');
+    status.className = `grade-status grade-status-${item.status}`;
+    status.textContent = item.status === 'pending' ? '未出成绩' : item.status === 'low' ? '低分' : '已计入';
+    row.append(status);
+    body.append(row);
+  }
+  table.append(head, body);
+  container.append(table);
+}
+
+const WEEKDAY_NUMBERS = { '日': 0, '天': 0, '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+const PERIOD_STARTS = [480, 535, 610, 665, 840, 895, 970, 1025, 1140, 1195, 1250];
+
+function parseCampusDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  const date = new Date(String(value).trim().replace(/(?:星期|周)[一二三四五六日天].*$/, '').replace(/[年/.]/g, '-').replace(/月/g, '-').replace(/日/g, ''));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function campusWeekday(value) {
+  if (value == null || value === '') return null;
+  const text = String(value).trim().toLowerCase();
+  const numeric = text.match(/[0-7]/)?.[0];
+  if (numeric != null && !/周|星期|week/.test(text)) return Number(numeric) % 7;
+  for (const [name, number] of Object.entries(WEEKDAY_NUMBERS)) if (text.includes(name)) return number;
+  return null;
+}
+
+function campusSection(row) {
+  const value = String(row?.section || row?.period || '').trim();
+  const number = value.match(/\d+/)?.[0];
+  if (number) return Number(number);
+  const chinese = value.match(/[一二三四五六七八九十]+/)?.[0];
+  const digits = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10, 十一: 11 };
+  return chinese ? (digits[chinese] || Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+}
+
+function campusDateMatches(row, date) {
+  const explicitDate = parseCampusDate(row?.date || row?.classDate || row?.startDate);
+  if (explicitDate) return localDateValue(explicitDate) === localDateValue(date);
+  const weekday = campusWeekday(row?.weekday);
+  return weekday != null && weekday === date.getDay();
+}
+
+function campusCourseMeta(row) {
+  return [row?.section && `第 ${row.section} 节`, row?.classroom, row?.teacher, row?.weeks].filter(Boolean).join(' · ');
+}
+
+function renderTodayCenter() {
+  const dateElement = $('#campus-today-date');
+  const sourceElement = $('#campus-today-source');
+  const next = $('#today-next-class');
+  const nextMeta = $('#today-next-class-meta');
+  const courseCount = $('#today-course-count');
+  const courseList = $('#today-course-list');
+  const examCountdown = $('#today-exam-countdown');
+  const examMeta = $('#today-exam-meta');
+  const todoCount = $('#today-todo-count');
+  const todoMeta = $('#today-todo-meta');
+  if (!dateElement || !sourceElement || !next || !nextMeta || !courseCount || !courseList || !examCountdown || !examMeta || !todoCount || !todoMeta) return;
+  const today = new Date();
+  dateElement.textContent = today.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  sourceElement.textContent = campusData ? `${campusData.site === 'jwxt' ? '教务系统' : '一网通办'}${campusData.term ? ` · ${campusData.term}` : ''}` : '读取校园数据后更新';
+  const schedule = Array.isArray(campusData?.schedule) ? campusData.schedule : [];
+  const todayCourses = schedule.filter(row => campusDateMatches(row, today)).sort((a, b) => campusSection(a) - campusSection(b));
+  courseCount.textContent = campusData ? `${todayCourses.length} 门` : '—';
+  courseList.textContent = todayCourses.length ? todayCourses.slice(0, 3).map(row => row.course || '未命名课程').join('、') + (todayCourses.length > 3 ? ` 等 ${todayCourses.length} 门` : '') : campusData ? '今天没有安排课程' : '读取课表后显示';
+  if (!campusData) {
+    next.textContent = '—';
+    nextMeta.textContent = '暂无课表数据';
+  } else if (!todayCourses.length) {
+    next.textContent = '暂无课程';
+    nextMeta.textContent = '今天没有安排课程';
+  } else {
+    const nowMinutes = today.getHours() * 60 + today.getMinutes();
+    const currentPeriod = PERIOD_STARTS.reduce((period, start, index) => nowMinutes >= start ? index + 1 : period, 0);
+    const nextCourse = todayCourses.find(row => campusSection(row) >= Math.max(1, currentPeriod)) || todayCourses[0];
+    const isLaterDay = todayCourses.every(row => campusSection(row) < currentPeriod);
+    next.textContent = isLaterDay ? '今日课程已结束' : (nextCourse.course || '未命名课程');
+    nextMeta.textContent = isLaterDay ? `共 ${todayCourses.length} 门课程` : campusCourseMeta(nextCourse) || '时间待定';
+  }
+  const upcomingExams = (campusData?.exams || []).map(row => ({ row, date: parseCampusDate(row.date) })).filter(item => item.date).sort((a, b) => a.date - b.date);
+  const upcomingExam = upcomingExams.find(item => localDateValue(item.date) >= localDateValue(today));
+  if (!campusData) {
+    examCountdown.textContent = '—';
+    examMeta.textContent = '暂无考试数据';
+  } else if (!upcomingExam) {
+    examCountdown.textContent = '暂无';
+    examMeta.textContent = '近期没有考试安排';
+  } else {
+    const dayDelta = Math.round((new Date(localDateValue(upcomingExam.date)) - new Date(localDateValue(today))) / 86400000);
+    examCountdown.textContent = dayDelta === 0 ? '今天' : `D-${dayDelta}`;
+    examMeta.textContent = `${upcomingExam.row.course || '未命名考试'}${upcomingExam.row.time ? ` · ${upcomingExam.row.time}` : ''}`;
+  }
+  const todos = Array.isArray(state.catalog?.todos) ? state.catalog.todos : [];
+  const pendingTodos = todos.filter(todo => !['completed', 'done', 'finished'].includes(String(todo.status || '').toLowerCase()));
+  todoCount.textContent = `${pendingTodos.length} 项`;
+  if (!pendingTodos.length) todoMeta.textContent = todos.length ? '待办已全部完成' : '暂无待办事项';
+  else {
+    const nearest = [...pendingTodos].sort((a, b) => (parseCampusDate(a.dueAt)?.getTime() || Infinity) - (parseCampusDate(b.dueAt)?.getTime() || Infinity))[0];
+    todoMeta.textContent = nearest.title ? `${nearest.courseName ? `${nearest.courseName} · ` : ''}${nearest.title}` : '打开批量下载查看详情';
+  }
+}
+
 function renderCampus() {
   const status = $('#campus-state');
   const profile = $('#campus-profile');
   const schedule = $('#campus-schedule');
   const exams = $('#campus-exams');
   const grades = $('#campus-grades');
-  if (!status || !profile || !schedule || !exams || !grades) return;
+  const gradeSummary = $('#campus-grade-summary');
+  if (!status || !profile || !schedule || !exams || !grades || !gradeSummary) return;
   schedule.replaceChildren();
+  const scheduleWeek = $('#campus-schedule-week');
+  if (scheduleWeek) scheduleWeek.replaceChildren();
   exams.replaceChildren();
   grades.replaceChildren();
+  gradeSummary.replaceChildren();
   profile.replaceChildren();
   if (campusLoading) {
     status.textContent = '正在读取当前页面…';
+    gradeSummary.hidden = true;
+    syncScheduleView();
+    renderTodayCenter();
     return;
   }
   if (!campusData) {
@@ -206,9 +575,12 @@ function renderCampus() {
     $('#campus-schedule-count').textContent = '';
     $('#campus-exam-count').textContent = '';
     $('#campus-grade-count').textContent = '';
+    gradeSummary.hidden = true;
     schedule.append(campusEmpty('暂无课表数据'));
     exams.append(campusEmpty('暂无考试数据'));
     grades.append(campusEmpty('暂无成绩数据'));
+    syncScheduleView();
+    renderTodayCenter();
     return;
   }
   const errors = campusData.errors || [];
@@ -223,18 +595,21 @@ function renderCampus() {
     profile.append(label, value);
     profile.hidden = false;
   } else profile.hidden = true;
-  const scheduleRows = campusData.schedule || [];
-  const examRows = campusData.exams || [];
-  const gradeRows = campusData.grades || [];
+  const scheduleRows = Array.isArray(campusData.schedule) ? campusData.schedule : [];
+  const examRows = Array.isArray(campusData.exams) ? campusData.exams : [];
+  const gradeRows = Array.isArray(campusData.grades) ? campusData.grades : [];
+  const gradeStats = summarizeGrades(gradeRows);
   $('#campus-schedule-count').textContent = `${scheduleRows.length} 门`;
   $('#campus-exam-count').textContent = `${examRows.length} 场`;
-  $('#campus-grade-count').textContent = `${gradeRows.length} 门`;
-  for (const row of scheduleRows) schedule.append(campusItem(row.course, [row.weekday && `周${row.weekday}`, row.section, row.classroom, row.teacher, row.weeks]));
+  $('#campus-grade-count').textContent = `${gradeRows.length} 门${gradeStats.pending ? ` · ${gradeStats.pending} 门未出` : ''}`;
+  renderScheduleList(schedule, scheduleRows);
   for (const row of examRows) exams.append(campusItem(row.course, [row.date, row.time, row.classroom, row.seat && `座位 ${row.seat}`]));
-  for (const row of gradeRows) grades.append(campusItem(row.course, [row.score && `成绩 ${row.score}`, row.credit && `学分 ${row.credit}`, row.gpa && `绩点 ${row.gpa}`, row.term]));
-  if (!scheduleRows.length) schedule.append(campusEmpty('暂无课表数据'));
+  gradeSummary.hidden = false;
+  renderGradeSummary(gradeSummary, gradeStats);
+  renderGradeTable(grades, gradeStats);
   if (!examRows.length) exams.append(campusEmpty('暂无考试数据'));
-  if (!gradeRows.length) grades.append(campusEmpty('暂无成绩数据'));
+  syncScheduleView();
+  renderTodayCenter();
 }
 
 function resourcesFor(course) {
@@ -648,6 +1023,7 @@ function renderTodos() {
     row.append(link, time);
     list.append(row);
   }
+  renderTodayCenter();
 }
 
 function renderCourseList() {
@@ -1245,6 +1621,23 @@ $('#session-check').addEventListener('click', checkSession);
 $('#task-search').addEventListener('input', renderTasks);
 $('#task-state-filter').addEventListener('change', renderTasks);
 $('#campus-refresh').addEventListener('click', loadCampus);
+for (const button of document.querySelectorAll('[data-schedule-view]')) button.addEventListener('click', () => {
+  scheduleView = button.dataset.scheduleView;
+  syncScheduleView();
+});
+$('#schedule-week-prev').addEventListener('click', () => {
+  scheduleWeekCursor.setDate(scheduleWeekCursor.getDate() - 7);
+  syncScheduleView();
+});
+$('#schedule-week-next').addEventListener('click', () => {
+  scheduleWeekCursor.setDate(scheduleWeekCursor.getDate() + 7);
+  syncScheduleView();
+});
+$('#schedule-week-today').addEventListener('click', () => {
+  scheduleWeekCursor = getScheduleMonday(new Date());
+  syncScheduleView();
+});
+$('#schedule-export-ics').addEventListener('click', exportScheduleIcs);
 $('#classroom-load-codes').addEventListener('click', loadClassroomCodes);
 $('#classroom-query').addEventListener('click', queryClassrooms);
 $('#classroom-date').value = localDateValue();

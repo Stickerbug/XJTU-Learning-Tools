@@ -105,12 +105,59 @@
         </div>
         <button id="campus-refresh" class="button primary" type="button">读取当前页面</button>
       </div>
+      <section id="campus-today" class="today-center" aria-labelledby="campus-today-title">
+        <div class="today-center-head">
+          <div>
+            <h2 id="campus-today-title">今日中心</h2>
+            <p id="campus-today-date" class="muted"></p>
+          </div>
+          <span id="campus-today-source" class="muted">读取校园数据后更新</span>
+        </div>
+        <div class="today-center-grid">
+          <article class="today-card today-card-next">
+            <div class="today-card-label">下一节课</div>
+            <div id="today-next-class" class="today-card-value">—</div>
+            <div id="today-next-class-meta" class="today-card-meta">暂无课表数据</div>
+          </article>
+          <article class="today-card">
+            <div class="today-card-label">今日课程</div>
+            <div id="today-course-count" class="today-card-value">—</div>
+            <div id="today-course-list" class="today-card-meta">读取课表后显示</div>
+          </article>
+          <article class="today-card">
+            <div class="today-card-label">考试倒计时</div>
+            <div id="today-exam-countdown" class="today-card-value">—</div>
+            <div id="today-exam-meta" class="today-card-meta">暂无考试数据</div>
+          </article>
+          <article class="today-card">
+            <div class="today-card-label">待办摘要</div>
+            <div id="today-todo-count" class="today-card-value">—</div>
+            <div id="today-todo-meta" class="today-card-meta">扫描课程后显示</div>
+          </article>
+        </div>
+      </section>
       <div id="campus-state" class="campus-state">请打开教务系统或一网通办后读取。</div>
       <div id="campus-profile" class="campus-profile" hidden></div>
       <div class="campus-grid">
         <section class="campus-panel">
-          <div class="campus-panel-head"><h2>课表</h2><span id="campus-schedule-count" class="muted"></span></div>
+          <div class="campus-panel-head campus-schedule-head">
+            <div class="campus-panel-title"><h2>课表</h2><span id="campus-schedule-count" class="muted"></span></div>
+            <div class="schedule-actions" role="group" aria-label="课表操作">
+              <div class="view-switch" role="group" aria-label="课表显示方式">
+                <button type="button" data-schedule-view="list" class="active">列表</button>
+                <button type="button" data-schedule-view="week">周视图</button>
+              </div>
+              <button id="schedule-export-ics" class="button secondary small" type="button">导出本周 ICS</button>
+            </div>
+          </div>
+          <div id="schedule-week-toolbar" class="schedule-week-toolbar" hidden>
+            <button id="schedule-week-prev" class="button secondary small" type="button" aria-label="上一周">上一周</button>
+            <button id="schedule-week-today" class="button secondary small" type="button">本周</button>
+            <strong id="schedule-week-label"></strong>
+            <button id="schedule-week-next" class="button secondary small" type="button" aria-label="下一周">下一周</button>
+          </div>
           <div id="campus-schedule" class="campus-list"></div>
+          <div id="campus-schedule-week" class="schedule-week" hidden></div>
         </section>
         <section class="campus-panel">
           <div class="campus-panel-head"><h2>考试安排</h2><span id="campus-exam-count" class="muted"></span></div>
@@ -118,7 +165,8 @@
         </section>
         <section class="campus-panel campus-panel-wide">
           <div class="campus-panel-head"><h2>成绩</h2><span id="campus-grade-count" class="muted"></span></div>
-          <div id="campus-grades" class="campus-list"></div>
+          <div id="campus-grade-summary" class="grade-summary" aria-label="成绩统计"></div>
+          <div id="campus-grades" class="campus-list grade-list"></div>
         </section>
       </div>
     </section>
