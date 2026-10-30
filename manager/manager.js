@@ -54,8 +54,10 @@ const PORTAL_SITES = [
   { category: '工具', name: '岱宗盒子', description: 'Android 综合校园工具', url: 'https://github.com/yeliqin666/xjtu-toolbox-android' },
   { category: '工具', name: 'XJTU Course Genius', description: '选课辅助工具', url: 'https://github.com/Hz162/XJTU-Course-Genius' }
 ];
-const PORTAL_CATEGORIES = ['全部', ...new Set(PORTAL_SITES.map(site => site.category))];
+const PORTAL_CATEGORIES = ['全部', ...new Set([...PORTAL_SITES.map(site => site.category), '校园服务'])];
 let portalCategory = '全部';
+let livePortalSites = [];
+let portalLoading = false;
 let campusData = null;
 let campusLoading = false;
 
@@ -103,7 +105,8 @@ function renderPortal() {
     switcher.append(button);
   }
   filters.append(switcher);
-  const sites = PORTAL_SITES.filter(site => {
+  const allSites = [...PORTAL_SITES, ...livePortalSites.map(site => ({ ...site, category: site.category || '校园服务' }))];
+  const sites = allSites.filter(site => {
     if (portalCategory !== '全部' && site.category !== portalCategory) return false;
     if (!query) return true;
     return `${site.name} ${site.description} ${site.url}`.toLowerCase().includes(query);
@@ -119,6 +122,25 @@ function renderPortal() {
     list.append(link);
   }
   $('#portal-empty').hidden = sites.length > 0;
+}
+
+async function syncPortal() {
+  portalLoading = true;
+  const button = $('#portal-sync');
+  if (button) { button.disabled = true; button.textContent = '同步中…'; }
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) throw new Error('请先打开一网通办');
+    const response = await call({ type: 'GET_CAMPUS_PORTAL', tabId: tab.id });
+    livePortalSites = response.data?.menus || [];
+    renderPortal();
+    showNotice(`已同步 ${livePortalSites.length} 个门户入口`, 'success');
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    portalLoading = false;
+    if (button) { button.disabled = false; button.textContent = '同步当前门户'; }
+  }
 }
 
 function campusEmpty(message) {
@@ -979,6 +1001,7 @@ $('#collapse-resources').addEventListener('click', () => {
 $('#resource-search').addEventListener('input', renderCatalog);
 $('#export-catalog').addEventListener('click', exportCatalog);
 $('#portal-search').addEventListener('input', renderPortal);
+$('#portal-sync').addEventListener('click', syncPortal);
 $('#task-search').addEventListener('input', renderTasks);
 $('#task-state-filter').addEventListener('change', renderTasks);
 $('#campus-refresh').addEventListener('click', loadCampus);

@@ -126,6 +126,47 @@
     return { site: 'ywtb', user: {}, term: pick(payload, ['xnxqdm', 'termCode']), schedule: normalizeSchedule(rows), exams: [], grades: [], errors: [] };
   }
 
+  function sessionToken() {
+    const keys = ['idToken', 'id_token', 'access_token', 'token', 'X-Id-Token'];
+    for (const key of keys) {
+      const value = textValue(localStorage.getItem(key));
+      if (value) return value;
+    }
+    return '';
+  }
+
+  function normalizeMenu(payload) {
+    const result = [];
+    const seen = new Set();
+    const walk = value => {
+      if (Array.isArray(value)) return value.forEach(walk);
+      if (!value || typeof value !== 'object') return;
+      const name = pick(value, ['name', 'title', 'serviceName', 'appName', 'label']);
+      const url = pick(value, ['url', 'link', 'serviceUrl', 'appUrl', 'redirectUrl', 'h5Url']);
+      if (name && url && /^https?:\/\//i.test(url) && !seen.has(url)) {
+        seen.add(url);
+        result.push({ name, url, category: pick(value, ['categoryName', 'typeName', 'groupName']) || '校园服务' });
+      }
+      for (const child of Object.values(value)) walk(child);
+    };
+    walk(payload);
+    return result.slice(0, 200);
+  }
+
+  async function portalMenu() {
+    if (location.hostname !== 'ywtb.xjtu.edu.cn') throw new Error('请打开一网通办页面');
+    const token = sessionToken();
+    const headers = token ? { 'X-Id-Token': token } : {};
+    const results = await Promise.allSettled([
+      api('/portal-api/api/open/app/menu', { headers }),
+      api('/portal-api/v1/config/getDetail', { headers }),
+      api('/portal-api/v1/config/system/getAppSystemConf', { headers })
+    ]);
+    const payloads = results.filter(item => item.status === 'fulfilled').map(item => item.value);
+    if (!payloads.length) throw new Error('当前一网通办页面无法读取门户菜单');
+    return { menus: normalizeMenu(payloads), sources: payloads.length };
+  }
+
   function overview() {
     if (location.hostname === 'jwxt.xjtu.edu.cn') return jwxtOverview();
     if (location.hostname === 'ywtb.xjtu.edu.cn') return ywtbOverview();
@@ -133,8 +174,9 @@
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type !== 'CAMPUS_GET_OVERVIEW') return false;
-    overview().then(data => sendResponse({ ok: true, data }))
+    if (!['CAMPUS_GET_OVERVIEW', 'CAMPUS_GET_PORTAL'].includes(message?.type)) return false;
+    const request = message.type === 'CAMPUS_GET_PORTAL' ? portalMenu() : overview();
+    request.then(data => sendResponse({ ok: true, data }))
       .catch(error => sendResponse({ ok: false, error: textValue(error?.message || error) }));
     return true;
   });

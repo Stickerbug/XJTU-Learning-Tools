@@ -60,14 +60,14 @@ async function sendToLms(tabId, message) {
   return response;
 }
 
-async function sendToCampus(tabId) {
+async function sendToCampus(tabId, messageType = 'CAMPUS_GET_OVERVIEW') {
   if (!tabId) throw new Error('请先打开教务系统或一网通办');
   const tab = await chrome.tabs.get(tabId);
   const url = new URL(tab.url || '');
   if (!['jwxt.xjtu.edu.cn', 'ywtb.xjtu.edu.cn'].includes(url.hostname)) {
     throw new Error('请先打开教务系统或一网通办页面');
   }
-  const response = await chrome.tabs.sendMessage(tabId, { type: 'CAMPUS_GET_OVERVIEW' });
+  const response = await chrome.tabs.sendMessage(tabId, { type: messageType });
   if (!response?.ok) throw new Error(response?.error || '无法读取当前校园页面，请刷新后重试');
   return response;
 }
@@ -649,6 +649,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case 'GET_CAMPUS_OVERVIEW':
         return { ok: true, ...(await sendToCampus(message.tabId)) };
+      case 'GET_CAMPUS_PORTAL':
+        return { ok: true, ...(await sendToCampus(message.tabId, 'CAMPUS_GET_PORTAL')) };
       case 'QUEUE_REPLAY':
         return queueReplay(message);
       case 'QUEUE_PDF':
