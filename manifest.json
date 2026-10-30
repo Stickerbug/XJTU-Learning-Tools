@@ -12,7 +12,9 @@
     "https://review-class.xjtu.edu.cn/*",
     "https://zyxf.top/*",
     "https://jwxt.xjtu.edu.cn/*",
-    "https://ywtb.xjtu.edu.cn/*"
+    "https://ywtb.xjtu.edu.cn/*",
+    "https://bk-kq.xjtu.edu.cn/*",
+    "https://yjs-kq.xjtu.edu.cn/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -34,6 +36,14 @@
         "https://ywtb.xjtu.edu.cn/*"
       ],
       "js": ["content/campus.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://bk-kq.xjtu.edu.cn/*",
+        "https://yjs-kq.xjtu.edu.cn/*"
+      ],
+      "js": ["content/attendance.js"],
       "run_at": "document_idle"
     }
   ],

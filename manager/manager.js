@@ -29,6 +29,8 @@ const PORTAL_SITES = [
   { category: '学习', name: '我的课表', description: '教务系统当前学期课程安排', url: 'https://jwxt.xjtu.edu.cn/jwapp/sys/wdkb/modules/xskcb/xskcb.do' },
   { category: '学习', name: '成绩查询', description: '课程成绩和学分信息', url: 'https://jwxt.xjtu.edu.cn/jwapp/sys/cjcx/modules/cjcx/xscjcx.do' },
   { category: '学习', name: '考试安排', description: '考试时间和地点', url: 'https://jwxt.xjtu.edu.cn/jwapp/sys/studentWdksapApp/modules/wdksap/wdksap.do' },
+  { category: '学习', name: '本科考勤', description: '课程考勤、缺勤和迟到记录', url: 'https://bk-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc' },
+  { category: '学习', name: '研究生考勤', description: '课程考勤、缺勤和迟到记录', url: 'https://yjs-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc' },
   { category: '学习', name: '空教室查询', description: '按时间查询可用教室', url: 'https://jwxt.xjtu.edu.cn/jwapp/sys/kxjas/modules/kxjscx/cxkxjs.do' },
   { category: '学习', name: '选课服务', description: '本科生选课与培养方案', url: 'https://xkfw.xjtu.edu.cn/' },
   { category: '学习', name: '教务处', description: '教学通知、校历和教学信息', url: 'https://dean.xjtu.edu.cn/' },
@@ -60,6 +62,10 @@ let livePortalSites = [];
 let portalLoading = false;
 let campusData = null;
 let campusLoading = false;
+let attendanceData = null;
+let attendanceLoading = false;
+let attendanceCourseFilter = 'all';
+let attendanceStatusFilter = 'all';
 let scheduleView = 'list';
 let scheduleWeekCursor = getScheduleMonday(new Date());
 let classroomCodes = { campuses: [], buildings: [] };
@@ -1612,6 +1618,136 @@ async function loadCampus() {
   }
 }
 
+const ATTENDANCE_STATUS_NAMES = {
+  NORMAL: '正常', ABSENT: '缺勤', ABSENCE: '缺勤', LATE: '迟到', LEAVE: '请假', PENDING: '待考勤', NOT_REQUIRED: '不考勤'
+};
+
+function attendanceStatusName(status) {
+  return ATTENDANCE_STATUS_NAMES[String(status || '').toUpperCase()] || '未知';
+}
+
+async function attendanceTab() {
+  const tabs = await chrome.tabs.query({});
+  const matches = tab => {
+    try { return ['bk-kq.xjtu.edu.cn', 'yjs-kq.xjtu.edu.cn'].includes(new URL(tab.url || '').hostname); } catch { return false; }
+  };
+  return tabs.find(tab => tab.active && matches(tab)) || tabs.find(matches) || null;
+}
+
+function renderAttendance() {
+  const stateElement = $('#attendance-state');
+  const summary = $('#attendance-summary');
+  const recordsElement = $('#attendance-records');
+  const courseSelect = $('#attendance-course-filter');
+  if (!stateElement || !summary || !recordsElement || !courseSelect) return;
+  summary.replaceChildren();
+  recordsElement.replaceChildren();
+  if (attendanceLoading) {
+    stateElement.textContent = '正在读取当前学期考勤…';
+    return;
+  }
+  if (!attendanceData) {
+    stateElement.textContent = '请打开本科或研究生考勤系统后读取。';
+    recordsElement.innerHTML = '<div class="attendance-empty">暂无考勤数据</div>';
+    return;
+  }
+  const records = Array.isArray(attendanceData.records) ? attendanceData.records : [];
+  const allCourses = [...new Set(records.map(row => row.course).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+  const previousCourse = attendanceCourseFilter;
+  courseSelect.replaceChildren();
+  const allOption = document.createElement('option');
+  allOption.value = 'all';
+  allOption.textContent = '全部课程';
+  courseSelect.append(allOption);
+  for (const course of allCourses) {
+    const option = document.createElement('option');
+    option.value = course;
+    option.textContent = course;
+    courseSelect.append(option);
+  }
+  attendanceCourseFilter = allCourses.includes(previousCourse) ? previousCourse : 'all';
+  courseSelect.value = attendanceCourseFilter;
+  const counts = records.reduce((result, row) => {
+    const key = String(row.status || '').toUpperCase();
+    result[key] = (result[key] || 0) + 1;
+    return result;
+  }, {});
+  const cards = [
+    ['涉及课程', allCourses.length],
+    ['缺勤', counts.ABSENT || counts.ABSENCE || 0],
+    ['迟到', counts.LATE || 0],
+    ['请假', counts.LEAVE || 0],
+    ['待考勤', counts.PENDING || 0]
+  ];
+  for (const [label, value] of cards) {
+    const card = document.createElement('div');
+    card.className = 'summary-card';
+    const number = document.createElement('strong');
+    number.textContent = String(value);
+    const title = document.createElement('span');
+    title.textContent = label;
+    card.append(number, title);
+    summary.append(card);
+  }
+  const filtered = records.filter(row => (attendanceCourseFilter === 'all' || row.course === attendanceCourseFilter) &&
+    (attendanceStatusFilter === 'all' || String(row.status).toUpperCase() === attendanceStatusFilter));
+  const term = attendanceData.currentSemester?.name || '当前学期';
+  stateElement.textContent = `${term} · 共 ${records.length} 条记录${filtered.length !== records.length ? ` · 当前显示 ${filtered.length} 条` : ''}`;
+  const header = document.createElement('div');
+  header.className = 'attendance-row attendance-row-head';
+  for (const text of ['日期', '课程', '节次', '教室 · 教师', '状态']) {
+    const cell = document.createElement('span');
+    cell.textContent = text;
+    header.append(cell);
+  }
+  recordsElement.append(header);
+  const sorted = [...filtered].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  for (const record of sorted) {
+    const row = document.createElement('div');
+    row.className = 'attendance-row';
+    const date = document.createElement('span');
+    date.textContent = record.date || '日期待定';
+    const course = document.createElement('span');
+    course.className = 'attendance-course';
+    course.textContent = record.course || '未命名课程';
+    const section = document.createElement('span');
+    section.className = 'attendance-meta';
+    section.textContent = record.startSection ? `第 ${record.startSection}-${record.endSection || record.startSection} 节` : '节次待定';
+    const place = document.createElement('span');
+    place.className = 'attendance-meta';
+    place.textContent = [record.classroom, record.teacher].filter(Boolean).join(' · ') || '地点待定';
+    const status = document.createElement('span');
+    status.className = `attendance-status attendance-status-${String(record.status || '').toUpperCase()}`;
+    status.textContent = attendanceStatusName(record.status);
+    row.append(date, course, section, place, status);
+    recordsElement.append(row);
+  }
+  if (!sorted.length) {
+    const empty = document.createElement('div');
+    empty.className = 'attendance-empty';
+    empty.textContent = '没有符合筛选条件的记录';
+    recordsElement.append(empty);
+  }
+}
+
+async function loadAttendance() {
+  attendanceLoading = true;
+  renderAttendance();
+  try {
+    const tab = await attendanceTab();
+    if (!tab?.id) throw new Error('请先打开并登录本科或研究生考勤系统');
+    const response = await call({ type: 'GET_ATTENDANCE_OVERVIEW', tabId: tab.id });
+    attendanceData = response.data;
+    showNotice('考勤数据已更新', 'success');
+  } catch (error) {
+    attendanceData = null;
+    showNotice(error.message);
+  } finally {
+    attendanceLoading = false;
+    renderAttendance();
+  }
+}
+
 for (const button of document.querySelectorAll('.nav-button')) button.addEventListener('click', () => switchView(button.dataset.view));
 for (const button of document.querySelectorAll('.queue-selected')) button.addEventListener('click', queueSelected);
 for (const button of document.querySelectorAll('[data-resource-view]')) {
@@ -1640,6 +1776,15 @@ $('#session-check').addEventListener('click', checkSession);
 $('#task-search').addEventListener('input', renderTasks);
 $('#task-state-filter').addEventListener('change', renderTasks);
 $('#campus-refresh').addEventListener('click', loadCampus);
+$('#attendance-refresh').addEventListener('click', loadAttendance);
+$('#attendance-course-filter').addEventListener('change', event => {
+  attendanceCourseFilter = event.target.value;
+  renderAttendance();
+});
+$('#attendance-status-filter').addEventListener('change', event => {
+  attendanceStatusFilter = event.target.value;
+  renderAttendance();
+});
 for (const button of document.querySelectorAll('[data-today-action]')) button.addEventListener('click', async () => {
   const action = button.dataset.todayAction;
   if (action === 'classrooms') {
@@ -1749,8 +1894,9 @@ const initialParams = new URLSearchParams(location.search);
 const initialView = initialParams.get('view');
 const initialDisplay = initialParams.get('display');
 if (['activities', 'sources', 'calendar'].includes(initialDisplay)) resourceView = initialDisplay;
-switchView(['resources', 'courses', 'campus', 'classrooms', 'portal', 'zyxf', 'tasks', 'settings'].includes(initialView) ? initialView : 'resources');
+switchView(['resources', 'courses', 'campus', 'attendance', 'classrooms', 'portal', 'zyxf', 'tasks', 'settings'].includes(initialView) ? initialView : 'resources');
 renderCampus();
+renderAttendance();
 renderClassrooms();
 if (initialView === 'classrooms') loadClassroomCodes();
 loadState().catch(error => showNotice(error.message));

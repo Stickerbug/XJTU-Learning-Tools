@@ -276,7 +276,12 @@
     const results = await Promise.allSettled([
       api('/portal-api/api/open/app/menu', { headers }),
       api('/portal-api/v1/config/getDetail', { headers }),
-      api('/portal-api/v1/config/system/getAppSystemConf', { headers })
+      api('/portal-api/v1/config/system/getAppSystemConf', { headers }),
+      api('/portal-api/v1/service/list', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: '{}'
+      })
     ]);
     const payloads = results.filter(item => item.status === 'fulfilled').map(item => item.value);
     if (!payloads.length) throw new Error('当前一网通办页面无法读取门户菜单');

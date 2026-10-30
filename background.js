@@ -72,6 +72,18 @@ async function sendToCampus(tabId, messageType = 'CAMPUS_GET_OVERVIEW') {
   return response;
 }
 
+async function sendToAttendance(tabId) {
+  if (!tabId) throw new Error('请先打开本科或研究生考勤系统');
+  const tab = await chrome.tabs.get(tabId);
+  const url = new URL(tab.url || '');
+  if (!['bk-kq.xjtu.edu.cn', 'yjs-kq.xjtu.edu.cn'].includes(url.hostname)) {
+    throw new Error('请先打开本科或研究生考勤系统页面');
+  }
+  const response = await chrome.tabs.sendMessage(tabId, { type: 'ATTENDANCE_GET_OVERVIEW' });
+  if (!response?.ok) throw new Error(response?.error || '无法读取考勤页面，请刷新后重试');
+  return response;
+}
+
 async function sessionStatus(tabId) {
   const tab = await chrome.tabs.get(tabId);
   const url = new URL(tab.url || '');
@@ -668,6 +680,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return { ok: true, ...(await sendToCampus(message.tabId, 'CAMPUS_GET_CLASSROOM_CODES')) };
       case 'GET_CLASSROOMS':
         return { ok: true, ...(await sendToCampus(message.tabId, 'CAMPUS_GET_CLASSROOMS')) };
+      case 'GET_ATTENDANCE_OVERVIEW':
+        return { ok: true, ...(await sendToAttendance(message.tabId)) };
       case 'GET_SESSION_STATUS':
         return { ok: true, ...(await sessionStatus(message.tabId)) };
       case 'QUEUE_REPLAY':

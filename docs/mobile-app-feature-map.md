@@ -19,7 +19,7 @@
 - 路由：`pages/tab/service/index`
 - 子视图：我的服务、全部服务、最近使用、服务搜索、服务详情。
 - 服务详情使用 `static/superappService.html`，参数包括服务名称、服务 ID、图标和 scheme URL。
-- 公开的服务读取接口包括 `v1/service/getService`、`v1/service/getServiceInfo`、`v1/service/getAllServices`、`v1/service/getLastUsed` 和 `v1/service/search` 一类调用；服务的最终 URL 仍由门户配置返回。
+- 服务读取接口包括 `POST /v1/service/list`、`GET /v1/service/tag/list`、`GET /v1/service/collect/list`、`GET /v1/service/lastUse/list`、`POST /v2/service/serviceShowAll`、`GET /v1/service/getService` 和 `GET /v1/service/getServiceInfo`；服务的最终 URL 仍由门户配置返回。
 - 可落地功能：常用服务收藏、用途搜索、当前页识别后直接跳转、把“空教室、课表、成绩、考试、图书馆座位”等服务固定到插件首页。
 
 ### 事务
@@ -75,24 +75,32 @@
 - 空教室查询：`POST /jwapp/sys/kxjas/modules/kxjscx/cxkxjs.do`
 - 查询参数：`XXXQDM`、`JXLDM`、`KXRQ`、`KSJC`、`JSJC`、`pageSize=500`、`pageNumber=1`
 
+### 考勤只读接口
+
+- 本科系统：`https://bk-kq.xjtu.edu.cn/sa`；研究生系统：`https://yjs-kq.xjtu.edu.cn/sa`。
+- 学期：`GET /student/service/timetable/semesters`。
+- 课程考勤：`POST /student/pc/attendance-records/page`，请求体包含 `pageNum`、`pageSize` 和 `data.startDate/data.endDate`。
+- 统一认证回调后，考勤系统通过 `POST /auth/cas/exchange` 换取短期 `X-Business-Token`；扩展只在当前页面内存使用，不保存令牌。
+
 ## 当前已实现的校园数据增强
 
 管理页的校园数据面板已补充移动端图谱中优先级较高的只读能力：
 
 - “今日中心”显示下一节课、今日课程、最近考试倒计时和 LMS 待办摘要。
 - “今日中心”提供空教室、周课表、校园数据刷新和思源学堂快捷入口；待办按截止时间排序并标记临近/逾期项目。
+- 考勤摘要复用本科/研究生考勤系统的只读接口，显示当前学期课程考勤状态，并支持按课程和状态筛选。
 - 课表支持列表与周视图，周视图可前后翻周，并可将当前选中周导出为 ICS 文件。
+- 校园门户支持从一网通办动态服务目录补全服务入口，并继续按名称、描述和分类筛选。
 - 成绩面板提供按学分加权的平均分、平均绩点、未出成绩和低分课程统计，并展示成绩明细表。
 
-这些入口沿用浏览器中已经登录的教务系统/一网通办会话；课表和成绩功能只读当前已获取的数据，不执行校园业务写操作。
+这些入口沿用浏览器中已经登录的校园会话；考勤在统一认证回调中换取短期业务令牌，只保存在当前页面内存，不执行校园业务写操作。
 
 ## 后续优先级
 
-1. “今天”首页：在现有今日中心上补充教室和空教室快捷按钮。
-2. 成绩页：增加多学期切换，并保留现有加权平均分、绩点、未出成绩和低分课程标记。
-3. 课表周视图：在现有周视图和 ICS 导出基础上，从课程直接打开 LMS 资料。
-4. 事务摘要：扩展只读待办、待阅和截止时间提醒；当前今日中心仅汇总 LMS 待办。
-5. 考勤摘要：沿用公开工具已验证的考勤读取接口，按课程显示出勤率和异常记录。
-6. 全校课程检索：课程名、院系、校区、选修类别和时间冲突筛选。
+1. 图书馆座位：在已登录图书馆页面内读取楼层区域空位统计，按空闲率和座位号筛选。
+2. 校园卡摘要：读取余额、未结算金额和近期消费流水，复用当前校园卡会话。
+3. 事务与消息摘要：把一网通办待办、未读消息和 LMS 待办合并到今日中心。
+4. 全校课程检索：课程名、院系、校区、选修类别和时间冲突筛选。
+5. 成绩页：增加多学期切换，并保留现有统计作为低优先级辅助功能。
 
 这些功能均以当前账号已获得的正常会话和公开接口为基础，不使用密码代存、隐藏接口或权限绕过。

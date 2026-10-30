@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check background.js && node --check content/lms.js && node --check content/campus.js && node --check popup/popup.js && node --check manager/manager.js"
+    "check": "node --check background.js && node --check content/lms.js && node --check content/campus.js && node --check content/attendance.js && node --check popup/popup.js && node --check manager/manager.js"
   }
 }

@@ -16,6 +16,7 @@
       <button class="nav-button active" data-view="resources" type="button">批量下载</button>
       <button class="nav-button" data-view="courses" type="button">课程</button>
       <button class="nav-button" data-view="campus" type="button">校园数据</button>
+      <button class="nav-button" data-view="attendance" type="button">考勤摘要</button>
       <button class="nav-button" data-view="classrooms" type="button">空教室</button>
       <button class="nav-button" data-view="portal" type="button">校园门户</button>
       <button class="nav-button" data-view="zyxf" type="button">学辅资料</button>
@@ -175,6 +176,30 @@
           <div id="campus-grades" class="campus-list grade-list"></div>
         </section>
       </div>
+    </section>
+
+    <section id="view-attendance" class="view" hidden>
+      <div class="toolbar">
+        <div>
+          <h1>考勤摘要</h1>
+          <p class="muted">读取当前登录考勤系统的课程考勤结果，快速定位缺勤和迟到记录</p>
+        </div>
+        <button id="attendance-refresh" class="button primary" type="button">读取当前学期</button>
+      </div>
+      <div id="attendance-state" class="campus-state">请打开本科或研究生考勤系统后读取。</div>
+      <div id="attendance-summary" class="classroom-summary attendance-summary" aria-label="考勤统计"></div>
+      <div class="attendance-filters">
+        <label>课程<select id="attendance-course-filter"><option value="all">全部课程</option></select></label>
+        <label>状态<select id="attendance-status-filter">
+          <option value="all">全部状态</option>
+          <option value="ABSENT">缺勤</option>
+          <option value="LATE">迟到</option>
+          <option value="LEAVE">请假</option>
+          <option value="PENDING">待考勤</option>
+          <option value="NORMAL">正常</option>
+        </select></label>
+      </div>
+      <div id="attendance-records" class="attendance-records"></div>
     </section>
 
     <section id="view-classrooms" class="view" hidden>
