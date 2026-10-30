@@ -130,6 +130,8 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 #portal-list a:hover { color: var(--blue); background: #f7fbfe; border-color: var(--blue); }
 #portal-filters { margin-top: 12px; }
 #portal-filters .view-switch { flex-wrap: wrap; }
+.session-status { padding: 10px 20px; color: var(--muted); border-bottom: 1px solid var(--line); background: #fafafa; }
+.session-status.is-online { color: #18733a; }
 
 .campus-state { padding: 14px 20px; color: var(--muted); border-bottom: 1px solid var(--line); background: #fafafa; }
 .campus-profile { display: flex; align-items: baseline; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); }

@@ -167,6 +167,20 @@
     return { menus: normalizeMenu(payloads), sources: payloads.length };
   }
 
+  async function loginStatus() {
+    try {
+      if (location.hostname === 'jwxt.xjtu.edu.cn') {
+        await api('/jwapp/sys/homeapp/api/home/currentUser.do');
+        return { site: 'jwxt', loggedIn: true };
+      }
+      if (location.hostname === 'ywtb.xjtu.edu.cn') {
+        await api('/portal-api/api/open/app/menu', { headers: sessionToken() ? { 'X-Id-Token': sessionToken() } : {} });
+        return { site: 'ywtb', loggedIn: true };
+      }
+    } catch {}
+    return { site: location.hostname, loggedIn: false };
+  }
+
   function overview() {
     if (location.hostname === 'jwxt.xjtu.edu.cn') return jwxtOverview();
     if (location.hostname === 'ywtb.xjtu.edu.cn') return ywtbOverview();
@@ -174,8 +188,8 @@
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (!['CAMPUS_GET_OVERVIEW', 'CAMPUS_GET_PORTAL'].includes(message?.type)) return false;
-    const request = message.type === 'CAMPUS_GET_PORTAL' ? portalMenu() : overview();
+    if (!['CAMPUS_GET_OVERVIEW', 'CAMPUS_GET_PORTAL', 'CAMPUS_GET_STATUS'].includes(message?.type)) return false;
+    const request = message.type === 'CAMPUS_GET_PORTAL' ? portalMenu() : message.type === 'CAMPUS_GET_STATUS' ? loginStatus() : overview();
     request.then(data => sendResponse({ ok: true, data }))
       .catch(error => sendResponse({ ok: false, error: textValue(error?.message || error) }));
     return true;

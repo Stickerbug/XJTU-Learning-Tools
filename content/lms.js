@@ -161,6 +161,13 @@
       switch (message.type) {
         case 'LMS_PING':
           return { ok: true, context: context() };
+        case 'LMS_STATUS':
+          {
+            const response = await fetch('/user/index', { credentials: 'include' });
+            const html = await response.text();
+            if (!response.ok || !/user\s*:\s*\{/.test(html)) throw new Error('当前页面未登录');
+            return { ok: true, loggedIn: true };
+          }
         case 'LMS_GET_ACTIVITY':
           return { ok: true, ...(await activityContext(message.courseId, message.activityId)) };
         case 'LMS_GET_PLAYER_URL': {

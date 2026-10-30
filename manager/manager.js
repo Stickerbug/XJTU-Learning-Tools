@@ -143,6 +143,25 @@ async function syncPortal() {
   }
 }
 
+async function checkSession() {
+  const container = $('#session-status');
+  const button = $('#session-check');
+  if (button) { button.disabled = true; button.textContent = '检测中…'; }
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) throw new Error('请先打开校园站点');
+    const result = await call({ type: 'GET_SESSION_STATUS', tabId: tab.id });
+    const names = { lms: '思源学堂', jwxt: '教务系统', ywtb: '一网通办' };
+    container.hidden = false;
+    container.textContent = `${names[result.site] || result.site}：${result.loggedIn === true ? '已登录' : result.loggedIn === false ? '未登录' : '当前页暂不支持检测'}`;
+    container.className = `session-status ${result.loggedIn === true ? 'is-online' : ''}`;
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    if (button) { button.disabled = false; button.textContent = '检测登录状态'; }
+  }
+}
+
 function campusEmpty(message) {
   const element = document.createElement('div');
   element.className = 'campus-empty';
@@ -895,6 +914,7 @@ function renderTasks() {
 }
 
 function renderSettings() {
+  $('#setting-username').value = state.settings.username || '';
   $('#setting-concurrency').value = String(state.settings.concurrency || 1);
   $('#setting-root').value = state.settings.root || 'XJTU';
   if (!$('#batch-track').dataset.initialized) {
@@ -1002,6 +1022,7 @@ $('#resource-search').addEventListener('input', renderCatalog);
 $('#export-catalog').addEventListener('click', exportCatalog);
 $('#portal-search').addEventListener('input', renderPortal);
 $('#portal-sync').addEventListener('click', syncPortal);
+$('#session-check').addEventListener('click', checkSession);
 $('#task-search').addEventListener('input', renderTasks);
 $('#task-state-filter').addEventListener('change', renderTasks);
 $('#campus-refresh').addEventListener('click', loadCampus);
@@ -1052,7 +1073,8 @@ $('#save-settings').addEventListener('click', async () => {
       settings: {
         concurrency: Number($('#setting-concurrency').value),
         root: $('#setting-root').value,
-        defaultTrack: $('#batch-track').value
+        defaultTrack: $('#batch-track').value,
+        username: $('#setting-username').value
       }
     });
     await loadState();

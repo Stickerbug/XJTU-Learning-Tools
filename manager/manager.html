@@ -130,9 +130,11 @@
         </div>
         <div class="toolbar-actions">
           <button id="portal-sync" class="button primary" type="button">同步当前门户</button>
+          <button id="session-check" class="button secondary" type="button">检测登录状态</button>
           <a class="button secondary" href="https://xjtu-links.com/" target="_blank" rel="noreferrer">完整站点目录</a>
         </div>
       </div>
+      <div id="session-status" class="session-status" hidden></div>
       <div class="search-bar">
         <input id="portal-search" type="search" placeholder="搜索站点名称、用途或地址" aria-label="搜索校园站点">
         <div id="portal-filters" class="resource-tools" role="group" aria-label="站点分类"></div>
@@ -192,6 +194,10 @@
     <section id="view-settings" class="view" hidden>
       <div class="settings-block">
         <h1>下载设置</h1>
+        <label class="setting-row">
+          <span>常用学号</span>
+          <input id="setting-username" inputmode="numeric" autocomplete="username" maxlength="32" placeholder="用于登录页自动填充">
+        </label>
         <label class="setting-row">
           <span>同时下载任务</span>
           <select id="setting-concurrency"><option value="1">1 个</option><option value="2">2 个</option><option value="3">3 个</option><option value="4">4 个</option></select>

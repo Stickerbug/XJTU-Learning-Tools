@@ -15,7 +15,7 @@ import {
   cleanError
 } from './shared/core.js';
 
-const DEFAULT_SETTINGS = { concurrency: 1, root: 'XJTU', defaultTrack: 'ENCODER' };
+const DEFAULT_SETTINGS = { concurrency: 1, root: 'XJTU', defaultTrack: 'ENCODER', username: '' };
 let settings = { ...DEFAULT_SETTINGS };
 let tasks = [];
 let catalog = { courses: [], updatedAt: null, sourceTabId: null };
@@ -70,6 +70,19 @@ async function sendToCampus(tabId, messageType = 'CAMPUS_GET_OVERVIEW') {
   const response = await chrome.tabs.sendMessage(tabId, { type: messageType });
   if (!response?.ok) throw new Error(response?.error || '无法读取当前校园页面，请刷新后重试');
   return response;
+}
+
+async function sessionStatus(tabId) {
+  const tab = await chrome.tabs.get(tabId);
+  const url = new URL(tab.url || '');
+  if (url.hostname === 'lms.xjtu.edu.cn') {
+    const response = await chrome.tabs.sendMessage(tabId, { type: 'LMS_STATUS' });
+    return { site: 'lms', loggedIn: Boolean(response?.ok && response.loggedIn) };
+  }
+  if (['jwxt.xjtu.edu.cn', 'ywtb.xjtu.edu.cn'].includes(url.hostname)) {
+    return sendToCampus(tabId, 'CAMPUS_GET_STATUS');
+  }
+  return { site: url.hostname || 'unknown', loggedIn: null };
 }
 
 function publicActivity(activity, course) {
@@ -651,6 +664,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return { ok: true, ...(await sendToCampus(message.tabId)) };
       case 'GET_CAMPUS_PORTAL':
         return { ok: true, ...(await sendToCampus(message.tabId, 'CAMPUS_GET_PORTAL')) };
+      case 'GET_SESSION_STATUS':
+        return { ok: true, ...(await sessionStatus(message.tabId)) };
       case 'QUEUE_REPLAY':
         return queueReplay(message);
       case 'QUEUE_PDF':
@@ -684,7 +699,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           ...settings,
           concurrency: [1, 2, 3, 4].includes(Number(message.settings?.concurrency)) ? Number(message.settings.concurrency) : 1,
           root: String(message.settings?.root || 'XJTU').trim() || 'XJTU',
-          defaultTrack: ['ENCODER', 'INSTRUCTOR', 'BOTH'].includes(message.settings?.defaultTrack) ? message.settings.defaultTrack : 'ENCODER'
+          defaultTrack: ['ENCODER', 'INSTRUCTOR', 'BOTH'].includes(message.settings?.defaultTrack) ? message.settings.defaultTrack : 'ENCODER',
+          username: String(message.settings?.username || '').trim().slice(0, 32)
         };
         await chrome.storage.local.set({ settings });
         broadcast();
