@@ -491,6 +491,21 @@ function campusCourseMeta(row) {
   return [row?.section && `第 ${row.section} 节`, row?.classroom, row?.teacher, row?.weeks].filter(Boolean).join(' · ');
 }
 
+function todoDueInfo(todo) {
+  const due = parseCampusDate(todo?.dueAt || todo?.deadline);
+  if (!due) return { label: '时间待定', className: '' };
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+  const dayDelta = Math.round((dueDay - today) / 86400000);
+  const time = due.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  if (dayDelta < 0) return { label: `已逾期 ${Math.abs(dayDelta)} 天`, className: 'is-overdue' };
+  if (dayDelta === 0) return { label: `今天 ${time} 截止`, className: 'is-soon' };
+  if (dayDelta === 1) return { label: `明天 ${time} 截止`, className: 'is-soon' };
+  if (dayDelta <= 7) return { label: `${dayDelta} 天后截止`, className: 'is-soon' };
+  return { label: due.toLocaleDateString('zh-CN'), className: '' };
+}
+
 function renderTodayCenter() {
   const dateElement = $('#campus-today-date');
   const sourceElement = $('#campus-today-source');
@@ -542,8 +557,9 @@ function renderTodayCenter() {
   todoCount.textContent = `${pendingTodos.length} 项`;
   if (!pendingTodos.length) todoMeta.textContent = todos.length ? '待办已全部完成' : '暂无待办事项';
   else {
-    const nearest = [...pendingTodos].sort((a, b) => (parseCampusDate(a.dueAt)?.getTime() || Infinity) - (parseCampusDate(b.dueAt)?.getTime() || Infinity))[0];
-    todoMeta.textContent = nearest.title ? `${nearest.courseName ? `${nearest.courseName} · ` : ''}${nearest.title}` : '打开批量下载查看详情';
+    const nearest = [...pendingTodos].sort((a, b) => (parseCampusDate(a.dueAt || a.deadline)?.getTime() || Infinity) - (parseCampusDate(b.dueAt || b.deadline)?.getTime() || Infinity))[0];
+    const due = todoDueInfo(nearest);
+    todoMeta.textContent = nearest.title ? `${due.label} · ${nearest.courseName ? `${nearest.courseName} · ` : ''}${nearest.title}` : '打开批量下载查看详情';
   }
 }
 
@@ -1007,7 +1023,8 @@ function renderTodos() {
   $('#todo-summary').textContent = `学习待办（${todos.length}）`;
   const list = $('#todo-list');
   list.replaceChildren();
-  for (const todo of todos) {
+  const sortedTodos = [...todos].sort((a, b) => (parseCampusDate(a.dueAt || a.deadline)?.getTime() || Infinity) - (parseCampusDate(b.dueAt || b.deadline)?.getTime() || Infinity));
+  for (const todo of sortedTodos) {
     const row = document.createElement('div');
     row.className = 'todo-row';
     const link = document.createElement('a');
@@ -1019,7 +1036,9 @@ function renderTodos() {
     link.rel = 'noreferrer';
     link.textContent = `${todo.courseName} · ${todo.title}`;
     const time = document.createElement('span');
-    time.textContent = todo.dueAt ? new Date(todo.dueAt).toLocaleString('zh-CN') : '时间待定';
+    const due = todoDueInfo(todo);
+    time.className = `todo-due ${due.className}`.trim();
+    time.textContent = due.label;
     row.append(link, time);
     list.append(row);
   }
@@ -1621,6 +1640,23 @@ $('#session-check').addEventListener('click', checkSession);
 $('#task-search').addEventListener('input', renderTasks);
 $('#task-state-filter').addEventListener('change', renderTasks);
 $('#campus-refresh').addEventListener('click', loadCampus);
+for (const button of document.querySelectorAll('[data-today-action]')) button.addEventListener('click', async () => {
+  const action = button.dataset.todayAction;
+  if (action === 'classrooms') {
+    switchView('classrooms');
+    if (!classroomCodes.campuses.length) await loadClassroomCodes();
+  } else if (action === 'schedule-week') {
+    switchView('campus');
+    if (!campusData) await loadCampus();
+    scheduleView = 'week';
+    syncScheduleView();
+    $('#campus-schedule-week')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else if (action === 'refresh') {
+    await loadCampus();
+  } else if (action === 'lms') {
+    await chrome.tabs.create({ url: 'https://lms.xjtu.edu.cn/user/index#/' });
+  }
+});
 for (const button of document.querySelectorAll('[data-schedule-view]')) button.addEventListener('click', () => {
   scheduleView = button.dataset.scheduleView;
   syncScheduleView();

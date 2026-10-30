@@ -22,7 +22,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .app-header { display: flex; align-items: stretch; min-height: 66px; color: #fff; background: var(--blue); border-bottom: 3px solid rgba(0,0,0,.16); }
 .brand { min-width: 252px; padding: 13px 24px; }
 .brand strong { display: block; font-size: 18px; }
-.brand span { display: block; margin-top: 4px; font-size: 11px; opacity: .82; }
+.brand span { display: block; margin-top: 4px; font-size: 12px; opacity: .82; }
 nav { display: flex; align-items: stretch; flex-wrap: wrap; }
 .nav-button { padding: 0 20px; color: #fff; background: transparent; border: 0; border-left: 1px solid rgba(255,255,255,.28); }
 .nav-button:last-child { border-right: 1px solid rgba(255,255,255,.28); }
@@ -81,13 +81,13 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .task-row { min-height: 66px; border-bottom: 1px solid var(--line); }
 .task-file { min-width: 0; }
 .task-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.task-path { margin-top: 4px; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-path { margin-top: 4px; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-state { font-size: 12px; }
 .task-state.error { color: var(--red); }
 .task-progress { min-width: 0; }
 .progress-track { height: 5px; background: #e4e4e4; }
 .progress-value { height: 100%; background: var(--blue); }
-.progress-text { margin-top: 5px; color: var(--muted); font-size: 11px; }
+.progress-text { margin-top: 5px; color: var(--muted); font-size: 12px; }
 .task-actions { display: flex; flex-wrap: wrap; gap: 5px; }
 .task-error { grid-column: 1 / -1; color: var(--red); font-size: 12px; }
 
@@ -119,6 +119,9 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .todo-row a, .resource-name a { color: var(--blue); text-decoration: none; }
 .todo-row a:hover, .resource-name a:hover { text-decoration: underline; }
 .todo-row span { flex: none; color: var(--muted); font-size: 12px; }
+.todo-row .todo-due { font-size: 13px; }
+.todo-row .todo-due.is-overdue { color: var(--red); font-weight: 600; }
+.todo-row .todo-due.is-soon { color: #9a6b00; font-weight: 600; }
 .resource-name a { margin-left: 10px; font-size: 12px; white-space: nowrap; }
 .link-list { display: flex; flex-wrap: wrap; gap: 10px 20px; margin-top: 14px; }
 .link-list.vertical { flex-direction: column; }
@@ -142,6 +145,8 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .today-card-label { color: var(--muted); font-size: 12px; }
 .today-card-value { margin-top: 7px; color: var(--blue); font-size: 20px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
 .today-card-meta { min-height: 34px; margin-top: 5px; color: #52616b; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.today-quick-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.today-quick-actions .button { min-height: 30px; padding: 5px 11px; font-size: 13px; }
 .campus-state { padding: 14px 20px; color: var(--muted); border-bottom: 1px solid var(--line); background: #fafafa; }
 .campus-profile { display: flex; align-items: baseline; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
 .campus-profile span { color: var(--muted); font-size: 13px; }
@@ -162,12 +167,12 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .schedule-week-corner, .schedule-week-section { color: var(--muted); background: #f7f7f7; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .schedule-week-corner { min-height: 38px; }
 .schedule-week-day { padding: 9px 8px; color: var(--blue); background: #f3f7fb; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 12px; text-align: center; }
-.schedule-week-section { display: flex; align-items: flex-start; justify-content: center; padding: 9px 4px; font-size: 11px; text-align: center; }
+.schedule-week-section { display: flex; align-items: flex-start; justify-content: center; padding: 9px 4px; font-size: 12px; text-align: center; }
 .schedule-week-cell { min-height: 72px; padding: 5px; border-right: 1px solid #ededed; border-bottom: 1px solid #ededed; }
 .schedule-week-item { padding: 6px; color: var(--ink); background: #eef5fa; border-left: 3px solid var(--blue); line-height: 1.35; }
 .schedule-week-item strong, .schedule-week-item span { display: block; overflow-wrap: anywhere; }
 .schedule-week-item strong { font-size: 12px; }
-.schedule-week-item span { margin-top: 3px; color: #52616b; font-size: 10px; }
+.schedule-week-item span { margin-top: 3px; color: #52616b; font-size: 12px; }
 .schedule-day-column { min-width: 0; min-height: 250px; border-right: 1px solid var(--line); }
 .schedule-day-column:last-child { border-right: 0; }
 .schedule-day-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 9px 10px; color: var(--blue); background: #f3f7fb; border-bottom: 1px solid var(--line); }
@@ -176,7 +181,7 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .schedule-event strong, .schedule-event span, .schedule-event small { display: block; overflow-wrap: anywhere; }
 .schedule-event strong { font-size: 13px; }
 .schedule-event span { margin-top: 3px; color: #4c5f6d; font-size: 11px; }
-.schedule-event small { margin-top: 3px; color: var(--muted); font-size: 10px; }
+.schedule-event small { margin-top: 3px; color: var(--muted); font-size: 12px; }
 .schedule-day-column .campus-empty { padding: 26px 8px; font-size: 12px; }
 .schedule-week-undated { margin-top: 10px; color: var(--muted); font-size: 12px; }
 .campus-list { max-height: 420px; overflow: auto; }
@@ -188,7 +193,7 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .grade-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); background: #fafafa; }
 .grade-summary-card { min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 5px 8px; }
 .grade-summary-card strong { min-width: 44px; }
-.grade-summary-card small { flex-basis: 100%; color: var(--muted); font-size: 11px; line-height: 1.35; }
+.grade-summary-card small { flex-basis: 100%; color: var(--muted); font-size: 12px; line-height: 1.35; }
 .grade-list { max-height: none; overflow-x: auto; }
 .grade-table { width: 100%; min-width: 680px; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
 .grade-table caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -261,7 +266,7 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .calendar-day.other-month { color: #a0a0a0; background: #f8f8f8; }
 .calendar-day.today { outline: 2px solid var(--blue); outline-offset: -2px; }
 .calendar-date { display: block; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.replay-chip { display: flex; align-items: flex-start; gap: 4px; margin-top: 6px; padding: 4px; color: var(--blue); background: #eef5fa; font-size: 11px; line-height: 1.35; cursor: pointer; }
+.replay-chip { display: flex; align-items: flex-start; gap: 4px; margin-top: 6px; padding: 4px; color: var(--blue); background: #eef5fa; font-size: 12px; line-height: 1.35; cursor: pointer; }
 .replay-chip input { flex: none; width: 12px; height: 12px; min-height: 0; margin: 1px 0 0; accent-color: var(--blue); }
 .replay-chip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .day-more { margin-top: 5px; color: var(--muted); font-size: 11px; }
@@ -285,7 +290,7 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
   .course-browser { grid-template-columns: 210px minmax(0, 1fr); }
   .resource-tools { align-items: flex-start; flex-direction: column; }
   .calendar-day { min-height: 96px; padding: 5px; }
-  .replay-chip { font-size: 10px; }
+  .replay-chip { font-size: 11px; }
   #portal-list { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 14px; }
   .catalog-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .campus-grid { grid-template-columns: 1fr; padding: 14px; }
