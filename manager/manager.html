@@ -16,6 +16,7 @@
       <button class="nav-button active" data-view="resources" type="button">批量下载</button>
       <button class="nav-button" data-view="courses" type="button">课程</button>
       <button class="nav-button" data-view="campus" type="button">校园数据</button>
+      <button class="nav-button" data-view="classrooms" type="button">空教室</button>
       <button class="nav-button" data-view="portal" type="button">校园门户</button>
       <button class="nav-button" data-view="zyxf" type="button">学辅资料</button>
       <button class="nav-button" data-view="tasks" type="button">下载任务 <span id="nav-task-count"></span></button>
@@ -120,6 +121,32 @@
           <div id="campus-grades" class="campus-list"></div>
         </section>
       </div>
+    </section>
+
+    <section id="view-classrooms" class="view" hidden>
+      <div class="toolbar">
+        <div>
+          <h1>空教室</h1>
+          <p class="muted">按日期和节次筛选全校可用教室</p>
+        </div>
+        <div class="toolbar-actions">
+          <button id="classroom-load-codes" class="button secondary" type="button">刷新校区和楼栋</button>
+          <button id="classroom-query" class="button primary" type="button">查询空教室</button>
+        </div>
+      </div>
+      <div class="classroom-filters">
+        <label>日期<input id="classroom-date" type="date"></label>
+        <label>校区<select id="classroom-campus"><option value="">读取中…</option></select></label>
+        <label>楼栋<select id="classroom-building"><option value="">全部楼栋</option></select></label>
+        <label>开始节次<select id="classroom-start"></select></label>
+        <label>结束节次<select id="classroom-end"></select></label>
+        <label>状态<select id="classroom-status"><option value="free">空闲</option><option value="all">空闲和占用</option></select></label>
+        <label>最少座位<input id="classroom-capacity" type="number" min="0" step="1" placeholder="不限"></label>
+        <label>类型<input id="classroom-type" type="search" placeholder="普通教室、实验室…"></label>
+      </div>
+      <div id="classroom-state" class="campus-state">请打开教务系统后加载校区和楼栋。</div>
+      <div id="classroom-summary" class="classroom-summary" hidden></div>
+      <div id="classroom-results" class="classroom-results"></div>
     </section>
 
     <section id="view-portal" class="view" hidden>

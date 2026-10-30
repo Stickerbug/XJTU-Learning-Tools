@@ -126,6 +126,106 @@
     return { site: 'ywtb', user: {}, term: pick(payload, ['xnxqdm', 'termCode']), schedule: normalizeSchedule(rows), exams: [], grades: [], errors: [] };
   }
 
+  function codeRows(payload) {
+    return rowsFrom(payload, ['datas.code', 'data.code', 'code', 'rows']);
+  }
+
+  function normalizeRoomRows(rows, defaults = {}) {
+    return rows.map(row => ({
+      name: pick(row, ['JASMC', 'JASMC_DISPLAY', 'roomName', 'name']),
+      buildingName: pick(row, ['JXLDM_DISPLAY', 'buildingName', 'building']),
+      buildingCode: pick(row, ['JXLDM', 'buildingCode']),
+      type: pick(row, ['JASLXDM_DISPLAY', 'type', 'roomType']),
+      capacity: pick(row, ['SKZWS', 'capacity', 'seatCount']),
+      examCapacity: pick(row, ['KSZWS', 'exam_capacity', 'examCapacity']),
+      campusName: pick(row, ['XXXQDM_DISPLAY', 'campusName', 'campus']) || defaults.campusName,
+      campusCode: pick(row, ['XXXQDM', 'campusCode']) || defaults.campusCode
+    })).filter(room => room.name && room.type && !room.name.includes('测试专用'));
+  }
+
+  async function ensureStudentRole() {
+    const payload = await api('/jwapp/sys/homeapp/api/home/currentUser.do');
+    const groups = payload?.datas?.userGroups || payload?.data?.userGroups || [];
+    const current = groups.find(item => item.currentRole);
+    if (current?.roleName === '学生') return;
+    const student = groups.find(item => item.roleName === '学生');
+    if (student?.roleId) {
+      await api('/jwapp/sys/homeapp/api/home/changeAppRole.do', {
+        method: 'POST', body: new URLSearchParams({ appRole: String(student.roleId) })
+      });
+    }
+  }
+
+  async function classroomCodes() {
+    const [campusPayload, buildingPayload] = await Promise.all([
+      api('/jwapp/code/83a986fc-e677-400e-99a4-c7bb39c2ca35.do', { method: 'POST' }),
+      api('/jwapp/code/551fbcc3-cf07-4566-af1e-fc7ce272ddc1.do', { method: 'POST' })
+    ]);
+    const campuses = codeRows(campusPayload).map(row => ({
+      code: pick(row, ['id', 'code', 'value']), name: pick(row, ['name', 'text', 'label'])
+    })).filter(item => item.code && item.name);
+    const buildings = codeRows(buildingPayload).map(row => ({
+      code: pick(row, ['id', 'code', 'value']), name: pick(row, ['name', 'text', 'label'])
+    })).filter(item => item.code && item.name);
+    return { campuses, buildings };
+  }
+
+  async function classroomQuery(campusCode, buildingCode, date, startSection, endSection) {
+    const payload = await api('/jwapp/sys/kxjas/modules/kxjscx/cxkxjs.do', {
+      method: 'POST',
+      body: new URLSearchParams({
+        XXXQDM: campusCode || '', JXLDM: buildingCode || '', KXRQ: date,
+        KSJC: String(startSection), JSJC: String(endSection), pageSize: '500', pageNumber: '1'
+      })
+    });
+    return normalizeRoomRows(rowsFrom(payload, ['datas.cxkxjs', 'data.cxkxjs', 'cxkxjs']), { campusCode });
+  }
+
+  async function classrooms(request = {}) {
+    if (location.hostname !== 'jwxt.xjtu.edu.cn') throw new Error('请打开教务系统页面');
+    await ensureStudentRole();
+    const codes = await classroomCodes();
+    const campus = codes.campuses.find(item => item.code === String(request.campusCode || '')) || codes.campuses[0];
+    if (!campus) throw new Error('未读取到校区列表');
+    const selectedBuilding = String(request.buildingCode || '');
+    const buildings = codes.buildings.filter(item => !selectedBuilding || item.code === selectedBuilding);
+    const date = String(request.date || new Date().toISOString().slice(0, 10));
+    const startSection = Math.max(1, Math.min(11, Number(request.startSection) || 1));
+    const endSection = Math.max(startSection, Math.min(11, Number(request.endSection) || startSection));
+    const chunks = [];
+    for (let index = 0; index < buildings.length; index += 5) {
+      const batch = buildings.slice(index, index + 5);
+      const rows = await Promise.all(batch.map(building => classroomQuery(campus.code, building.code, date, startSection, endSection)
+        .catch(() => [])));
+      chunks.push(...rows.flat());
+    }
+    const free = chunks.map(room => ({ ...room, status: 'free' }));
+    const result = {
+      date, campus: { code: campus.code, name: campus.name },
+      building: selectedBuilding ? (buildings[0] || null) : null,
+      startSection, endSection, rooms: free, total: free.length,
+      available: free.length, occupied: null, codes
+    };
+    if (String(request.status || 'free') === 'all') {
+      const inventoryRows = [];
+      for (let index = 0; index < buildings.length; index += 5) {
+        const batch = buildings.slice(index, index + 5);
+        const rows = await Promise.all(batch.map(building => classroomQuery(campus.code, building.code, date, 0, 0).catch(() => [])));
+        inventoryRows.push(...rows.flat());
+      }
+      const freeKeys = new Set(free.map(room => `${room.buildingName}|${room.name}`));
+      const inventory = new Map();
+      for (const room of inventoryRows) inventory.set(`${room.buildingName}|${room.name}`, room);
+      const occupied = [...inventory.values()].filter(room => !freeKeys.has(`${room.buildingName}|${room.name}`))
+        .map(room => ({ ...room, status: 'occupied' }));
+      result.rooms = [...free, ...occupied];
+      result.total = result.rooms.length;
+      result.available = free.length;
+      result.occupied = occupied.length;
+    }
+    return result;
+  }
+
   function sessionToken() {
     const keys = ['idToken', 'id_token', 'access_token', 'token', 'X-Id-Token'];
     for (const key of keys) {
@@ -188,8 +288,11 @@
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (!['CAMPUS_GET_OVERVIEW', 'CAMPUS_GET_PORTAL', 'CAMPUS_GET_STATUS'].includes(message?.type)) return false;
-    const request = message.type === 'CAMPUS_GET_PORTAL' ? portalMenu() : message.type === 'CAMPUS_GET_STATUS' ? loginStatus() : overview();
+    if (!['CAMPUS_GET_OVERVIEW', 'CAMPUS_GET_PORTAL', 'CAMPUS_GET_STATUS', 'CAMPUS_GET_CLASSROOM_CODES', 'CAMPUS_GET_CLASSROOMS'].includes(message?.type)) return false;
+    const request = message.type === 'CAMPUS_GET_PORTAL' ? portalMenu()
+      : message.type === 'CAMPUS_GET_STATUS' ? loginStatus()
+        : message.type === 'CAMPUS_GET_CLASSROOM_CODES' ? classroomCodes()
+        : message.type === 'CAMPUS_GET_CLASSROOMS' ? classrooms(message.query || {}) : overview();
     request.then(data => sendResponse({ ok: true, data }))
       .catch(error => sendResponse({ ok: false, error: textValue(error?.message || error) }));
     return true;

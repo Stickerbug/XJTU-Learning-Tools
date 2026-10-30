@@ -664,6 +664,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return { ok: true, ...(await sendToCampus(message.tabId)) };
       case 'GET_CAMPUS_PORTAL':
         return { ok: true, ...(await sendToCampus(message.tabId, 'CAMPUS_GET_PORTAL')) };
+      case 'GET_CLASSROOM_CODES':
+        return { ok: true, ...(await sendToCampus(message.tabId, 'CAMPUS_GET_CLASSROOM_CODES')) };
+      case 'GET_CLASSROOMS':
+        return { ok: true, ...(await sendToCampus(message.tabId, 'CAMPUS_GET_CLASSROOMS')) };
       case 'GET_SESSION_STATUS':
         return { ok: true, ...(await sessionStatus(message.tabId)) };
       case 'QUEUE_REPLAY':

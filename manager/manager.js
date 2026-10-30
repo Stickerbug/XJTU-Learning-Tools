@@ -60,6 +60,9 @@ let livePortalSites = [];
 let portalLoading = false;
 let campusData = null;
 let campusLoading = false;
+let classroomCodes = { campuses: [], buildings: [] };
+let classroomData = null;
+let classroomLoading = false;
 
 const STATE_NAMES = {
   queued: '排队中', resolving: '解析地址', downloading: '下载中', paused: '已暂停',
@@ -980,11 +983,227 @@ async function exportCatalog() {
   }
 }
 
+function localDateValue(date = new Date()) {
+  const pad = value => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+async function campusTab() {
+  const tabs = await chrome.tabs.query({});
+  const active = tabs.find(tab => tab.active && tab.url?.startsWith('https://jwxt.xjtu.edu.cn/'));
+  return active || tabs.find(tab => tab.url?.startsWith('https://jwxt.xjtu.edu.cn/')) || null;
+}
+
+function periodOptions() {
+  return Array.from({ length: 11 }, (_, index) => ({ value: String(index + 1), label: `第 ${index + 1} 节` }));
+}
+
+function fillClassroomSelects() {
+  const campusSelect = $('#classroom-campus');
+  const buildingSelect = $('#classroom-building');
+  if (!campusSelect || !buildingSelect) return;
+  const previousCampus = campusSelect.value;
+  const previousBuilding = buildingSelect.value;
+  campusSelect.replaceChildren();
+  for (const campus of classroomCodes.campuses || []) {
+    const option = document.createElement('option');
+    option.value = campus.code;
+    option.textContent = campus.name;
+    campusSelect.append(option);
+  }
+  if (classroomCodes.campuses.some(item => item.code === previousCampus)) campusSelect.value = previousCampus;
+  buildingSelect.replaceChildren();
+  const all = document.createElement('option');
+  all.value = '';
+  all.textContent = '全部楼栋';
+  buildingSelect.append(all);
+  for (const building of classroomCodes.buildings || []) {
+    const option = document.createElement('option');
+    option.value = building.code;
+    option.textContent = building.name;
+    buildingSelect.append(option);
+  }
+  if (classroomCodes.buildings.some(item => item.code === previousBuilding)) buildingSelect.value = previousBuilding;
+}
+
+function renderClassroomPeriods() {
+  const start = $('#classroom-start');
+  const end = $('#classroom-end');
+  if (!start || !end || start.options.length) return;
+  for (const item of periodOptions()) {
+    const first = document.createElement('option');
+    first.value = item.value;
+    first.textContent = item.label;
+    const second = first.cloneNode(true);
+    start.append(first);
+    end.append(second);
+  }
+  start.value = '1';
+  end.value = '1';
+  start.addEventListener('change', () => {
+    if (Number(end.value) < Number(start.value)) end.value = start.value;
+  });
+}
+
+function renderClassrooms() {
+  const stateElement = $('#classroom-state');
+  const summary = $('#classroom-summary');
+  const results = $('#classroom-results');
+  if (!stateElement || !summary || !results) return;
+  results.replaceChildren();
+  if (classroomLoading) {
+    stateElement.textContent = '正在查询教室状态…';
+    summary.hidden = true;
+    return;
+  }
+  if (!classroomData) {
+    stateElement.textContent = classroomCodes.campuses.length ? '选择时间后查询。' : '请打开教务系统后加载校区和楼栋。';
+    summary.hidden = true;
+    return;
+  }
+  const minCapacity = Number($('#classroom-capacity')?.value || 0);
+  const typeQuery = String($('#classroom-type')?.value || '').trim().toLowerCase();
+  const rooms = (classroomData.rooms || []).filter(room => {
+    if (minCapacity && Number(room.capacity || 0) < minCapacity) return false;
+    if (typeQuery && !String(room.type || '').toLowerCase().includes(typeQuery)) return false;
+    return true;
+  });
+  const free = rooms.filter(room => room.status === 'free').length;
+  const occupied = rooms.filter(room => room.status === 'occupied').length;
+  summary.hidden = false;
+  summary.replaceChildren();
+  const cards = [
+    ['空闲', free],
+    ['占用', classroomData.occupied == null ? '—' : occupied],
+    ['查询楼栋', classroomData.queriedBuildings || classroomData.codes?.buildings?.length || 0],
+    ['筛选结果', rooms.length]
+  ];
+  for (const [label, value] of cards) {
+    const card = document.createElement('div');
+    card.className = 'summary-card';
+    const number = document.createElement('strong');
+    number.textContent = String(value);
+    const caption = document.createElement('span');
+    caption.textContent = `${label}${label === '查询楼栋' ? '' : '间'}`;
+    card.append(number, caption);
+    summary.append(card);
+  }
+  stateElement.textContent = `${classroomData.campus?.name || ''} · ${classroomData.date} · 第 ${classroomData.startSection}-${classroomData.endSection} 节 · ${classroomData.building?.name || '全部楼栋'}${classroomData.errors?.length ? ` · ${classroomData.errors.length} 个楼栋未返回数据` : ''}`;
+  const groups = new Map();
+  for (const room of rooms) {
+    const key = room.buildingName || '未标注楼栋';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(room);
+  }
+  for (const [building, buildingRooms] of groups) {
+    const section = document.createElement('section');
+    section.className = 'classroom-building-group';
+    const heading = document.createElement('div');
+    heading.className = 'classroom-group-head';
+    const title = document.createElement('h2');
+    title.textContent = building;
+    const freeCount = buildingRooms.filter(room => room.status === 'free').length;
+    const meta = document.createElement('span');
+    meta.className = 'muted';
+    meta.textContent = classroomData.occupied == null ? `${freeCount} 间空闲` : `${freeCount} 空闲 · ${buildingRooms.length - freeCount} 占用`;
+    heading.append(title, meta);
+    section.append(heading);
+    const list = document.createElement('div');
+    list.className = 'classroom-room-list';
+    for (const room of buildingRooms) {
+      const row = document.createElement('div');
+      row.className = `classroom-room ${room.status === 'occupied' ? 'is-occupied' : 'is-free'}`;
+      const name = document.createElement('strong');
+      name.textContent = room.name;
+      const details = document.createElement('span');
+      details.textContent = [room.type, room.capacity ? `${room.capacity} 座` : '', room.examCapacity ? `考试 ${room.examCapacity} 座` : ''].filter(Boolean).join(' · ');
+      const status = document.createElement('span');
+      status.className = 'classroom-room-status';
+      status.textContent = room.status === 'occupied' ? '占用' : '空闲';
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'text-button';
+      copy.textContent = '复制';
+      copy.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(`${building} ${room.name}`);
+          showNotice('教室名称已复制', 'success');
+        } catch { showNotice(`${building} ${room.name}`); }
+      });
+      row.append(name, details, status, copy);
+      list.append(row);
+    }
+    section.append(list);
+    results.append(section);
+  }
+  if (!rooms.length) results.append(campusEmpty('没有符合筛选条件的教室'));
+}
+
+async function loadClassroomCodes() {
+  const stateElement = $('#classroom-state');
+  const button = $('#classroom-load-codes');
+  if (button) { button.disabled = true; button.textContent = '读取中…'; }
+  try {
+    const tab = await campusTab();
+    if (!tab?.id) throw new Error('请先打开并登录教务系统');
+    const response = await call({ type: 'GET_CLASSROOM_CODES', tabId: tab.id });
+    classroomCodes = response.data || { campuses: [], buildings: [] };
+    fillClassroomSelects();
+    if (stateElement) stateElement.textContent = `已读取 ${classroomCodes.campuses.length} 个校区、${classroomCodes.buildings.length} 栋教学楼`;
+    showNotice('校区和楼栋已更新', 'success');
+  } catch (error) {
+    if (stateElement) stateElement.textContent = error.message;
+    showNotice(error.message);
+  } finally {
+    if (button) { button.disabled = false; button.textContent = '刷新校区和楼栋'; }
+  }
+}
+
+async function queryClassrooms() {
+  if (!classroomCodes.campuses.length) await loadClassroomCodes();
+  if (!classroomCodes.campuses.length) return;
+  classroomLoading = true;
+  renderClassrooms();
+  const button = $('#classroom-query');
+  if (button) { button.disabled = true; button.textContent = '查询中…'; }
+  try {
+    const tab = await campusTab();
+    if (!tab?.id) throw new Error('请先打开并登录教务系统');
+    const response = await call({
+      type: 'GET_CLASSROOMS',
+      tabId: tab.id,
+      query: {
+        campusCode: $('#classroom-campus').value,
+        buildingCode: $('#classroom-building').value,
+        date: $('#classroom-date').value,
+        startSection: $('#classroom-start').value,
+        endSection: $('#classroom-end').value,
+        status: $('#classroom-status').value
+      }
+    });
+    classroomData = response.data;
+    if (classroomData?.codes) classroomCodes = classroomData.codes;
+    renderClassrooms();
+    showNotice(`已查询 ${classroomData?.available ?? 0} 间空闲教室`, 'success');
+  } catch (error) {
+    classroomData = null;
+    showNotice(error.message);
+    renderClassrooms();
+  } finally {
+    classroomLoading = false;
+    renderClassrooms();
+    if (button) { button.disabled = false; button.textContent = '查询空教室'; }
+  }
+}
+
 async function loadCampus() {
   campusLoading = true;
   renderCampus();
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = activeTab?.url?.startsWith('https://jwxt.xjtu.edu.cn/') || activeTab?.url?.startsWith('https://ywtb.xjtu.edu.cn/')
+      ? activeTab
+      : (await chrome.tabs.query({})).find(item => item.url?.startsWith('https://jwxt.xjtu.edu.cn/') || item.url?.startsWith('https://ywtb.xjtu.edu.cn/'));
     if (!tab?.id) throw new Error('请先打开教务系统或一网通办');
     const response = await call({ type: 'GET_CAMPUS_OVERVIEW', tabId: tab.id });
     campusData = response.data;
@@ -1026,6 +1245,15 @@ $('#session-check').addEventListener('click', checkSession);
 $('#task-search').addEventListener('input', renderTasks);
 $('#task-state-filter').addEventListener('change', renderTasks);
 $('#campus-refresh').addEventListener('click', loadCampus);
+$('#classroom-load-codes').addEventListener('click', loadClassroomCodes);
+$('#classroom-query').addEventListener('click', queryClassrooms);
+$('#classroom-date').value = localDateValue();
+renderClassroomPeriods();
+for (const selector of ['#classroom-capacity', '#classroom-type', '#classroom-status']) $(selector).addEventListener('input', renderClassrooms);
+$('#classroom-status').addEventListener('change', renderClassrooms);
+document.querySelector('[data-view="classrooms"]').addEventListener('click', () => {
+  if (!classroomCodes.campuses.length) loadClassroomCodes();
+});
 $('#zyxf-search-button').addEventListener('click', runZyxfSearch);
 $('#zyxf-search').addEventListener('keydown', event => {
   if (event.key === 'Enter') runZyxfSearch();
@@ -1092,6 +1320,8 @@ const initialParams = new URLSearchParams(location.search);
 const initialView = initialParams.get('view');
 const initialDisplay = initialParams.get('display');
 if (['activities', 'sources', 'calendar'].includes(initialDisplay)) resourceView = initialDisplay;
-switchView(['resources', 'courses', 'campus', 'portal', 'zyxf', 'tasks', 'settings'].includes(initialView) ? initialView : 'resources');
+switchView(['resources', 'courses', 'campus', 'classrooms', 'portal', 'zyxf', 'tasks', 'settings'].includes(initialView) ? initialView : 'resources');
 renderCampus();
+renderClassrooms();
+if (initialView === 'classrooms') loadClassroomCodes();
 loadState().catch(error => showNotice(error.message));

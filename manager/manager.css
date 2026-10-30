@@ -148,6 +148,25 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .campus-item-meta { margin-top: 4px; color: var(--muted); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
 .campus-empty { padding: 28px 16px; color: var(--muted); text-align: center; }
 
+.classroom-filters { display: flex; flex-wrap: wrap; gap: 10px 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: #fafafa; }
+.classroom-filters label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.classroom-filters input, .classroom-filters select { min-width: 112px; }
+.classroom-filters input[type="number"] { width: 92px; min-width: 92px; }
+.classroom-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: #fafafa; }
+.classroom-results { padding: 18px 20px; background: #f8f8f8; }
+.classroom-building-group { margin-bottom: 14px; background: #fff; border: 1px solid var(--line); }
+.classroom-building-group:last-child { margin-bottom: 0; }
+.classroom-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.classroom-group-head h2 { font-size: 16px; }
+.classroom-room-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.classroom-room { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(0, 1.3fr) auto auto; gap: 10px; align-items: center; min-height: 48px; padding: 9px 14px; border-bottom: 1px solid #ededed; }
+.classroom-room:nth-child(odd) { border-right: 1px solid #ededed; }
+.classroom-room strong, .classroom-room > span { min-width: 0; overflow-wrap: anywhere; }
+.classroom-room > span:not(.classroom-room-status) { color: var(--muted); font-size: 12px; }
+.classroom-room-status { padding: 3px 7px; color: #18733a; background: #eaf7ef; font-size: 12px; white-space: nowrap; }
+.classroom-room.is-occupied .classroom-room-status { color: var(--red); background: #fff0f0; }
+.classroom-room.is-occupied strong { color: #777; }
+
 .text-button { padding: 2px 4px; color: var(--blue); background: transparent; border: 0; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
 .text-button:hover { color: var(--red); }
 .button { text-decoration: none; }
@@ -211,6 +230,9 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
   .catalog-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .campus-grid { grid-template-columns: 1fr; padding: 14px; }
   .campus-panel-wide { grid-column: auto; }
+  .classroom-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .classroom-room-list { grid-template-columns: 1fr; }
+  .classroom-room:nth-child(odd) { border-right: 0; }
 }
 @media (max-width: 620px) {
   .app-header { flex-direction: column; }
@@ -223,6 +245,10 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
   .task-filters select { width: 100%; }
   .setting-row { grid-template-columns: 1fr; gap: 6px; margin: 14px 0; }
   #portal-list { grid-template-columns: 1fr; }
+  .classroom-filters { flex-direction: column; }
+  .classroom-filters label, .classroom-filters input, .classroom-filters select { width: 100%; }
+  .classroom-room { grid-template-columns: 1fr auto; gap: 5px 10px; }
+  .classroom-room > span:not(.classroom-room-status) { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
