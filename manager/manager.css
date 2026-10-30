@@ -58,6 +58,7 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .summary-card { display: flex; align-items: baseline; gap: 8px; padding: 9px 12px; background: #fff; border: 1px solid var(--line); }
 .summary-card strong { color: var(--blue); font-size: 20px; font-variant-numeric: tabular-nums; }
 .summary-card span { color: var(--muted); font-size: 13px; }
+.summary-card small { color: var(--muted); font-size: 12px; }
 .course { border-bottom: 1px solid var(--line); }
 .course:last-child { border-bottom: 0; }
 .course summary { display: grid; grid-template-columns: 1fr auto; gap: 12px; padding: 15px 20px; cursor: pointer; list-style: none; }
@@ -101,6 +102,9 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .direct-form { display: flex; gap: 10px; padding: 0 20px 14px; }
 .direct-form input { flex: 1; min-width: 0; }
 .course-browser { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 560px; }
+.course-search-bar { padding-block: 10px; }
+.campus-grade-head { align-items: center; }
+.campus-grade-head select { min-width: 180px; }
 .course-list { background: #f7f7f7; border-right: 1px solid var(--line); }
 .course-list-item { display: block; width: 100%; padding: 13px 16px; color: var(--ink); text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--line); }
 .course-list-item span { display: block; line-height: 1.45; }
@@ -235,6 +239,37 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .attendance-status-PENDING { color: #8a6a00; }
 .attendance-status-NORMAL { color: #18733a; }
 .attendance-empty { padding: 36px 20px; color: var(--muted); text-align: center; }
+.library-filters { display: flex; flex-wrap: wrap; gap: 10px 14px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: #fafafa; }
+.library-filters label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; }
+.library-filters select { min-width: 170px; }
+.library-filters input { min-width: 170px; }
+.library-results { padding: 18px 20px; background: #f8f8f8; }
+.library-area { margin-bottom: 14px; background: #fff; border: 1px solid var(--line); }
+.library-area:last-child { margin-bottom: 0; }
+.library-area-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.library-area-head span { color: var(--muted); font-size: 13px; }
+.library-seat-list { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 16px; }
+.library-seat { min-width: 48px; padding: 5px 7px; color: #18733a; background: #eaf7ef; border: 1px solid #ccebd6; text-align: center; font-size: 13px; }
+.card-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.card-transactions { padding: 18px 20px; background: #f8f8f8; }
+.card-transaction-list { background: #fff; border: 1px solid var(--line); }
+.card-transaction-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-bottom: 1px solid #ededed; }
+.card-transaction-row:last-child { border-bottom: 0; }
+.card-transaction-row main { min-width: 0; }
+.card-transaction-row strong, .card-transaction-row span { display: block; overflow-wrap: anywhere; }
+.card-transaction-row span { margin-top: 4px; color: var(--muted); font-size: 13px; }
+.card-transaction-row b { flex: none; font-variant-numeric: tabular-nums; }
+.card-transaction-row b.is-income { color: #18733a; }
+.card-transaction-row b.is-expense { color: var(--red); }
+.inbox-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.inbox-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 18px 20px; background: #f8f8f8; }
+.inbox-list { max-height: 520px; overflow: auto; }
+.inbox-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 12px 16px; border-bottom: 1px solid #ededed; }
+.inbox-item strong, .inbox-item span { min-width: 0; overflow-wrap: anywhere; }
+.inbox-item span { color: var(--muted); font-size: 13px; }
+.inbox-item a { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--blue); text-decoration: none; }
+.inbox-item.is-overdue { background: #fff8f0; }
+.inbox-item.is-overdue strong { color: var(--red); }
 .classroom-results { padding: 18px 20px; background: #f8f8f8; }
 .classroom-building-group { margin-bottom: 14px; background: #fff; border: 1px solid var(--line); }
 .classroom-building-group:last-child { margin-bottom: 0; }
@@ -315,6 +350,8 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
   .today-center-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grade-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .classroom-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card-summary, .inbox-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inbox-grid { grid-template-columns: 1fr; padding: 14px; }
   .attendance-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .attendance-row { grid-template-columns: 96px minmax(130px, 1fr) 100px minmax(120px, 1fr) 80px; gap: 8px; padding-inline: 14px; }
   .classroom-room-list { grid-template-columns: 1fr; }
@@ -332,7 +369,14 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
   .setting-row { grid-template-columns: 1fr; gap: 6px; margin: 14px 0; }
   #portal-list { grid-template-columns: 1fr; }
   .grade-summary { grid-template-columns: 1fr; }
+  .card-summary, .inbox-summary { grid-template-columns: 1fr; }
   .attendance-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .library-filters { flex-direction: column; }
+  .library-filters label, .library-filters input, .library-filters select { width: 100%; }
+  .library-results, .card-transactions { padding: 14px; }
+  .card-transaction-row { align-items: flex-start; padding: 11px 14px; }
+  .campus-grade-head { align-items: flex-start; flex-direction: column; }
+  .campus-grade-head select { width: 100%; }
   .classroom-filters { flex-direction: column; }
   .attendance-filters { flex-direction: column; }
   .attendance-filters label, .attendance-filters select { width: 100%; }

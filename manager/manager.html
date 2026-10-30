@@ -17,6 +17,9 @@
       <button class="nav-button" data-view="courses" type="button">课程</button>
       <button class="nav-button" data-view="campus" type="button">校园数据</button>
       <button class="nav-button" data-view="attendance" type="button">考勤摘要</button>
+      <button class="nav-button" data-view="library" type="button">图书馆座位</button>
+      <button class="nav-button" data-view="card" type="button">校园卡</button>
+      <button class="nav-button" data-view="inbox" type="button">事务消息</button>
       <button class="nav-button" data-view="classrooms" type="button">空教室</button>
       <button class="nav-button" data-view="portal" type="button">校园门户</button>
       <button class="nav-button" data-view="zyxf" type="button">学辅资料</button>
@@ -81,6 +84,9 @@
     </section>
 
     <section id="view-courses" class="view" hidden>
+      <div class="search-bar course-search-bar">
+        <input id="course-search" type="search" placeholder="搜索课程名称、课程代码或学期" aria-label="搜索课程">
+      </div>
       <div class="course-browser">
         <aside id="course-list" class="course-list" aria-label="课程列表"></aside>
         <section class="course-detail">
@@ -171,10 +177,65 @@
           <div id="campus-exams" class="campus-list"></div>
         </section>
         <section class="campus-panel campus-panel-wide">
-          <div class="campus-panel-head"><h2>成绩</h2><span id="campus-grade-count" class="muted"></span></div>
+          <div class="campus-panel-head campus-grade-head"><div class="campus-panel-title"><h2>成绩</h2><span id="campus-grade-count" class="muted"></span></div><select id="campus-grade-term" aria-label="成绩学期"><option value="all">全部学期</option></select></div>
           <div id="campus-grade-summary" class="grade-summary" aria-label="成绩统计"></div>
           <div id="campus-grades" class="campus-list grade-list"></div>
         </section>
+      </div>
+    </section>
+
+    <section id="view-library" class="view" hidden>
+      <div class="toolbar">
+        <div>
+          <h1>图书馆座位</h1>
+          <p class="muted">按楼层查看各区域实时空位，先在图书馆座位页完成登录</p>
+        </div>
+        <div class="toolbar-actions">
+          <a class="button secondary" href="http://rg.lib.xjtu.edu.cn:8086/seat/" target="_blank" rel="noreferrer">打开座位页</a>
+          <button id="library-refresh" class="button primary" type="button">读取楼层空位</button>
+        </div>
+      </div>
+      <div class="library-filters">
+        <label>校区与楼层<select id="library-floor"></select></label>
+        <label>座位号筛选<input id="library-seat-search" type="search" placeholder="例如 A101"></label>
+      </div>
+      <div id="library-state" class="campus-state">请打开图书馆座位页后读取。</div>
+      <div id="library-summary" class="classroom-summary" hidden></div>
+      <div id="library-results" class="library-results"></div>
+    </section>
+
+    <section id="view-card" class="view" hidden>
+      <div class="toolbar">
+        <div>
+          <h1>校园卡</h1>
+          <p class="muted">读取余额、未结算金额和近 30 天消费流水</p>
+        </div>
+        <div class="toolbar-actions">
+          <a class="button secondary" href="https://ncard.xjtu.edu.cn/" target="_blank" rel="noreferrer">打开校园卡</a>
+          <button id="card-refresh" class="button primary" type="button">读取校园卡</button>
+        </div>
+      </div>
+      <div id="card-state" class="campus-state">请打开校园卡移动端页面后读取。</div>
+      <div id="card-summary" class="classroom-summary card-summary" hidden></div>
+      <div id="card-transactions" class="card-transactions"></div>
+    </section>
+
+    <section id="view-inbox" class="view" hidden>
+      <div class="toolbar">
+        <div>
+          <h1>事务消息</h1>
+          <p class="muted">合并一网通办事务、校园消息、预约和校车预约摘要</p>
+        </div>
+        <div class="toolbar-actions">
+          <a class="button secondary" href="https://ywtb.xjtu.edu.cn/" target="_blank" rel="noreferrer">打开一网通办</a>
+          <button id="inbox-refresh" class="button primary" type="button">读取事务消息</button>
+        </div>
+      </div>
+      <div id="inbox-state" class="campus-state">请打开并登录一网通办后读取。</div>
+      <div id="inbox-summary" class="classroom-summary inbox-summary" hidden></div>
+      <div class="inbox-grid">
+        <section class="campus-panel"><div class="campus-panel-head"><h2>校园消息</h2></div><div id="inbox-messages" class="inbox-list"></div></section>
+        <section class="campus-panel"><div class="campus-panel-head"><h2>事务待办</h2></div><div id="inbox-todos" class="inbox-list"></div></section>
       </div>
     </section>
 

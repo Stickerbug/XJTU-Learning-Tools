@@ -14,7 +14,14 @@
     "https://jwxt.xjtu.edu.cn/*",
     "https://ywtb.xjtu.edu.cn/*",
     "https://bk-kq.xjtu.edu.cn/*",
-    "https://yjs-kq.xjtu.edu.cn/*"
+    "https://yjs-kq.xjtu.edu.cn/*",
+    "http://rg.lib.xjtu.edu.cn/*",
+    "https://rg.lib.xjtu.edu.cn/*",
+    "https://ncard.xjtu.edu.cn/*",
+    "https://message-service.xjtu.edu.cn/*",
+    "https://transaction.xjtu.edu.cn/*",
+    "https://reservation.xjtu.edu.cn/*",
+    "https://xjbus.xjtu.edu.cn/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -44,6 +51,19 @@
         "https://yjs-kq.xjtu.edu.cn/*"
       ],
       "js": ["content/attendance.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "http://rg.lib.xjtu.edu.cn/*",
+        "https://rg.lib.xjtu.edu.cn/*"
+      ],
+      "js": ["content/library.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://ncard.xjtu.edu.cn/*"],
+      "js": ["content/card.js"],
       "run_at": "document_idle"
     }
   ],

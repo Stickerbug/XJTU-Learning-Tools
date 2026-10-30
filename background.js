@@ -84,6 +84,81 @@ async function sendToAttendance(tabId) {
   return response;
 }
 
+async function sendToLibrary(tabId, floorCode) {
+  if (!tabId) throw new Error('请先打开图书馆座位页面');
+  const tab = await chrome.tabs.get(tabId);
+  const url = new URL(tab.url || '');
+  if (url.hostname !== 'rg.lib.xjtu.edu.cn') throw new Error('请先打开图书馆座位页面');
+  const response = await chrome.tabs.sendMessage(tabId, { type: 'LIBRARY_GET_FLOOR', floorCode });
+  if (!response?.ok) throw new Error(response?.error || '无法读取图书馆座位，请刷新后重试');
+  return response;
+}
+
+async function sendToCard(tabId) {
+  if (!tabId) throw new Error('请先打开校园卡移动端页面');
+  const tab = await chrome.tabs.get(tabId);
+  const url = new URL(tab.url || '');
+  if (url.hostname !== 'ncard.xjtu.edu.cn') throw new Error('请先打开校园卡页面');
+  const response = await chrome.tabs.sendMessage(tabId, { type: 'CARD_GET_OVERVIEW' });
+  if (!response?.ok) throw new Error(response?.error || '无法读取校园卡，请刷新后重试');
+  return response;
+}
+
+async function fetchJson(url, headers = {}) {
+  const response = await fetch(url, { credentials: 'include', headers: { Accept: 'application/json', ...headers } });
+  const body = await response.text();
+  let payload;
+  try { payload = JSON.parse(body); } catch { throw new Error(`校园服务返回格式异常（${response.status}）`); }
+  if (!response.ok) throw new Error(payload?.message || `校园服务请求失败（${response.status}）`);
+  if (payload?.code != null && ![0, '0', 200, '200'].includes(payload.code)) throw new Error(payload.message || '校园服务请求失败');
+  return payload;
+}
+
+async function sendToSchoolInbox(tabId) {
+  if (!tabId) throw new Error('请先打开并登录一网通办');
+  const tab = await chrome.tabs.get(tabId);
+  const url = new URL(tab.url || '');
+  if (url.hostname !== 'ywtb.xjtu.edu.cn') throw new Error('请先打开并登录一网通办');
+  const tokenResponse = await chrome.tabs.sendMessage(tabId, { type: 'CAMPUS_GET_TOKEN' });
+  const token = String(tokenResponse?.token || '');
+  if (!token) throw new Error('一网通办当前页面没有可用会话，请刷新并重新登录');
+  const headers = { 'X-Id-Token': token, 'X-Terminal-Info': 'app' };
+  const requests = await Promise.allSettled([
+    fetchJson('https://message-service.xjtu.edu.cn/center/api/v1/instantMessage/getAppMessageList/new?pageIndex=0&pageSize=30', headers),
+    fetchJson('https://transaction.xjtu.edu.cn/ttc/api/ttc/center-list/getToDoList?pageIndex=1&pageSize=30', headers),
+    fetchJson('https://reservation.xjtu.edu.cn/api/myreservation/my?state=1&useState=0&current=1&size=20', headers),
+    fetchJson('https://xjbus.xjtu.edu.cn/api/school/bus/user/pageReservationUsers?status=1&current=1&size=20', headers)
+  ]);
+  const value = index => requests[index].status === 'fulfilled' ? requests[index].value : null;
+  const errors = requests.map(item => item.status === 'rejected' ? item.reason?.message || '部分校园事务读取失败' : '').filter(Boolean);
+  const messageRoot = value(0);
+  const todoRoot = value(1);
+  const bookingRoot = value(2);
+  const busRoot = value(3);
+  const messageData = Array.isArray(messageRoot?.data) ? messageRoot.data : messageRoot?.data?.list || [];
+  const todoData = Array.isArray(todoRoot?.data) ? todoRoot.data : todoRoot?.data?.items || [];
+  return {
+    messages: messageData.slice(0, 30).map(item => ({
+      title: String(item.title || item.appName || '校园消息'),
+      source: String(item.appName || '校园消息'),
+      time: String(item.editTime || item.createTime || ''),
+      link: String(item.mobileUrl || item.url || ''),
+      body: String(item.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    })),
+    todos: todoData.slice(0, 30).map(item => ({
+      title: String(item.title || item.transactionName || '事务待办'),
+      source: String(item.appName || item.custom1 || '事务中心'),
+      time: String(item.addTime || item.createTime || ''),
+      link: String(item.mHandleUrl || item.handleUrl || item.mViewUrl || item.viewUrl || ''),
+      overdue: String(item.timeOut || '').toLowerCase() === 'true'
+    })),
+    bookings: Number(bookingRoot?.data?.total || 0),
+    busBookings: Number(busRoot?.data?.total || 0),
+    errors,
+    fetchedAt: new Date().toISOString()
+  };
+}
+
 async function sessionStatus(tabId) {
   const tab = await chrome.tabs.get(tabId);
   const url = new URL(tab.url || '');
@@ -682,6 +757,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return { ok: true, ...(await sendToCampus(message.tabId, 'CAMPUS_GET_CLASSROOMS')) };
       case 'GET_ATTENDANCE_OVERVIEW':
         return { ok: true, ...(await sendToAttendance(message.tabId)) };
+      case 'GET_LIBRARY_FLOOR':
+        return { ok: true, ...(await sendToLibrary(message.tabId, message.floorCode)) };
+      case 'GET_CARD_OVERVIEW':
+        return { ok: true, ...(await sendToCard(message.tabId)) };
+      case 'GET_SCHOOL_INBOX':
+        return { ok: true, data: await sendToSchoolInbox(message.tabId) };
       case 'GET_SESSION_STATUS':
         return { ok: true, ...(await sessionStatus(message.tabId)) };
       case 'QUEUE_REPLAY':

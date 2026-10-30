@@ -66,6 +66,14 @@ let attendanceData = null;
 let attendanceLoading = false;
 let attendanceCourseFilter = 'all';
 let attendanceStatusFilter = 'all';
+let libraryData = null;
+let libraryLoading = false;
+let cardData = null;
+let cardLoading = false;
+let inboxData = null;
+let inboxLoading = false;
+let gradeTermFilter = 'all';
+let courseSearchQuery = '';
 let scheduleView = 'list';
 let scheduleWeekCursor = getScheduleMonday(new Date());
 let classroomCodes = { campuses: [], buildings: [] };
@@ -576,7 +584,8 @@ function renderCampus() {
   const exams = $('#campus-exams');
   const grades = $('#campus-grades');
   const gradeSummary = $('#campus-grade-summary');
-  if (!status || !profile || !schedule || !exams || !grades || !gradeSummary) return;
+  const gradeTerm = $('#campus-grade-term');
+  if (!status || !profile || !schedule || !exams || !grades || !gradeSummary || !gradeTerm) return;
   schedule.replaceChildren();
   const scheduleWeek = $('#campus-schedule-week');
   if (scheduleWeek) scheduleWeek.replaceChildren();
@@ -597,6 +606,8 @@ function renderCampus() {
     $('#campus-schedule-count').textContent = '';
     $('#campus-exam-count').textContent = '';
     $('#campus-grade-count').textContent = '';
+    gradeTerm.replaceChildren(new Option('全部学期', 'all'));
+    gradeTerm.value = 'all';
     gradeSummary.hidden = true;
     schedule.append(campusEmpty('暂无课表数据'));
     exams.append(campusEmpty('暂无考试数据'));
@@ -620,10 +631,16 @@ function renderCampus() {
   const scheduleRows = Array.isArray(campusData.schedule) ? campusData.schedule : [];
   const examRows = Array.isArray(campusData.exams) ? campusData.exams : [];
   const gradeRows = Array.isArray(campusData.grades) ? campusData.grades : [];
-  const gradeStats = summarizeGrades(gradeRows);
+  const terms = [...new Set(gradeRows.map(row => row.term).filter(Boolean))];
+  const selectedTerm = terms.includes(gradeTermFilter) ? gradeTermFilter : 'all';
+  gradeTermFilter = selectedTerm;
+  gradeTerm.replaceChildren(new Option('全部学期', 'all'), ...terms.map(term => new Option(term, term)));
+  gradeTerm.value = gradeTermFilter;
+  const visibleGrades = gradeTermFilter === 'all' ? gradeRows : gradeRows.filter(row => row.term === gradeTermFilter);
+  const gradeStats = summarizeGrades(visibleGrades);
   $('#campus-schedule-count').textContent = `${scheduleRows.length} 门`;
   $('#campus-exam-count').textContent = `${examRows.length} 场`;
-  $('#campus-grade-count').textContent = `${gradeRows.length} 门${gradeStats.pending ? ` · ${gradeStats.pending} 门未出` : ''}`;
+  $('#campus-grade-count').textContent = `${visibleGrades.length}${gradeTermFilter === 'all' && terms.length > 1 ? ` / ${gradeRows.length}` : ''} 门${gradeStats.pending ? ` · ${gradeStats.pending} 门未出` : ''}`;
   renderScheduleList(schedule, scheduleRows);
   for (const row of examRows) exams.append(campusItem(row.course, [row.date, row.time, row.classroom, row.seat && `座位 ${row.seat}`]));
   gradeSummary.hidden = false;
@@ -632,6 +649,214 @@ function renderCampus() {
   if (!examRows.length) exams.append(campusEmpty('暂无考试数据'));
   syncScheduleView();
   renderTodayCenter();
+}
+
+const LIBRARY_FLOORS = [
+  ['xingqing2floor', '兴庆 · 2 层'], ['xingqing3floor', '兴庆 · 3 层'], ['xingqing4floor', '兴庆 · 4 层'],
+  ['inno1floor', '创新港 · 1 层'], ['inno2floor', '创新港 · 2 层'],
+  ['yanta1floor', '雁塔 · 1 层'], ['yanta2floor', '雁塔 · 2 层'], ['yanta3floor', '雁塔 · 3 层'], ['yanta4floor', '雁塔 · 4 层']
+];
+
+function libraryTab() {
+  return chrome.tabs.query({}).then(tabs => {
+    const matches = tab => { try { return new URL(tab.url || '').hostname === 'rg.lib.xjtu.edu.cn'; } catch { return false; } };
+    return tabs.find(tab => tab.active && matches(tab)) || tabs.find(matches) || null;
+  });
+}
+
+function renderLibrary() {
+  const stateElement = $('#library-state');
+  const summary = $('#library-summary');
+  const results = $('#library-results');
+  if (!stateElement || !summary || !results) return;
+  summary.replaceChildren();
+  results.replaceChildren();
+  if (libraryLoading) {
+    stateElement.textContent = '正在读取图书馆座位…';
+    return;
+  }
+  if (!libraryData) {
+    stateElement.textContent = '请打开图书馆座位页后读取。';
+    results.append(campusEmpty('暂无图书馆座位数据'));
+    return;
+  }
+  const areas = Array.isArray(libraryData.areas) ? libraryData.areas : [];
+  const total = areas.reduce((sum, area) => sum + (Number(area.total) || 0), 0);
+  const free = areas.reduce((sum, area) => sum + (Number(area.free) || 0), 0);
+  const rate = total ? `${(free / total * 100).toFixed(1)}%` : '—';
+  stateElement.textContent = `${libraryData.name || libraryData.floorCode} · ${areas.length} 个区域 · 更新于 ${new Date(libraryData.fetchedAt || Date.now()).toLocaleTimeString('zh-CN')}`;
+  for (const [label, value, note] of [['空闲座位', free, '当前楼层'], ['座位总数', total, '当前楼层'], ['空闲率', rate, '按区域统计'], ['区域数', areas.length, '实时返回']]) {
+    const card = document.createElement('div');
+    card.className = 'summary-card';
+    const number = document.createElement('strong');
+    number.textContent = String(value);
+    const title = document.createElement('span');
+    title.textContent = label;
+    const hint = document.createElement('small');
+    hint.textContent = note;
+    card.append(number, title, hint);
+    summary.append(card);
+  }
+  summary.hidden = false;
+  const query = String($('#library-seat-search')?.value || '').trim().toLowerCase();
+  for (const area of areas) {
+    const section = document.createElement('section');
+    section.className = 'library-area';
+    const head = document.createElement('div');
+    head.className = 'library-area-head';
+    const title = document.createElement('strong');
+    title.textContent = area.name || area.code;
+    const meta = document.createElement('span');
+    meta.textContent = `${area.free || 0} 空闲 / ${area.total || 0} 座`;
+    head.append(title, meta);
+    section.append(head);
+    const seats = (area.seats || []).filter(seat => seat.free && (!query || seat.id.toLowerCase().includes(query)));
+    const list = document.createElement('div');
+    list.className = 'library-seat-list';
+    for (const seat of seats.slice(0, 160)) {
+      const item = document.createElement('span');
+      item.className = 'library-seat free';
+      item.textContent = seat.id;
+      list.append(item);
+    }
+    if (!seats.length) {
+      const empty = document.createElement('span');
+      empty.className = 'muted';
+      empty.textContent = query ? '没有匹配的空闲座位' : '未返回座位明细';
+      list.append(empty);
+    }
+    section.append(list);
+    results.append(section);
+  }
+}
+
+async function loadLibrary() {
+  libraryLoading = true;
+  renderLibrary();
+  try {
+    const tab = await libraryTab();
+    if (!tab?.id) throw new Error('请先打开图书馆座位页面');
+    const response = await call({ type: 'GET_LIBRARY_FLOOR', tabId: tab.id, floorCode: $('#library-floor').value });
+    libraryData = response.data;
+    showNotice('图书馆座位已更新', 'success');
+  } catch (error) {
+    libraryData = null;
+    showNotice(error.message);
+  } finally {
+    libraryLoading = false;
+    renderLibrary();
+  }
+}
+
+function renderCard() {
+  const stateElement = $('#card-state');
+  const summary = $('#card-summary');
+  const transactions = $('#card-transactions');
+  if (!stateElement || !summary || !transactions) return;
+  summary.replaceChildren();
+  transactions.replaceChildren();
+  if (cardLoading) { stateElement.textContent = '正在读取校园卡…'; return; }
+  if (!cardData) { stateElement.textContent = '请打开校园卡移动端页面后读取。'; transactions.append(campusEmpty('暂无校园卡数据')); return; }
+  const card = cardData.card;
+  stateElement.textContent = `${cardData.errors?.length ? `部分数据未读取：${cardData.errors.join('、')} · ` : ''}近 30 天流水 ${cardData.transactions?.length || 0} 条`;
+  const status = card ? (card.frozen ? '已冻结' : card.lost ? '已挂失' : '正常') : '余额未读取';
+  for (const [label, value, note] of [
+    ['余额', card ? `¥${Number(card.balance || 0).toFixed(2)}` : '—', card?.type || '一卡通'],
+    ['未结算', card ? `¥${Number(card.pending || 0).toFixed(2)}` : '—', '待结算金额'],
+    ['卡状态', status, card?.expireDate ? `有效期 ${card.expireDate}` : '当前状态'],
+    ['流水', cardData.transactions?.length || 0, '近 30 天']
+  ]) {
+    const item = document.createElement('div');
+    item.className = 'summary-card';
+    const number = document.createElement('strong'); number.textContent = String(value);
+    const title = document.createElement('span'); title.textContent = label;
+    const hint = document.createElement('small'); hint.textContent = note;
+    item.append(number, title, hint); summary.append(item);
+  }
+  summary.hidden = false;
+  const records = cardData.transactions || [];
+  if (!records.length) { transactions.append(campusEmpty('近 30 天没有流水')); return; }
+  const table = document.createElement('div'); table.className = 'card-transaction-list';
+  for (const record of records) {
+    const row = document.createElement('article'); row.className = 'card-transaction-row';
+    const main = document.createElement('div');
+    const merchant = document.createElement('strong'); merchant.textContent = record.merchant || '校园消费';
+    const detail = document.createElement('span'); detail.textContent = [record.time, record.description].filter(Boolean).join(' · ');
+    main.append(merchant, detail);
+    const amount = document.createElement('b');
+    const income = /充值|退款|补助|圈存|transfer-in|refund/i.test(`${record.type} ${record.description}`);
+    amount.className = income ? 'is-income' : 'is-expense';
+    amount.textContent = `${income ? '+' : '-'}¥${Math.abs(Number(record.amount || 0)).toFixed(2)}`;
+    row.append(main, amount); table.append(row);
+  }
+  transactions.append(table);
+}
+
+async function cardTab() {
+  const tabs = await chrome.tabs.query({});
+  const matches = tab => { try { return new URL(tab.url || '').hostname === 'ncard.xjtu.edu.cn'; } catch { return false; } };
+  return tabs.find(tab => tab.active && matches(tab)) || tabs.find(matches) || null;
+}
+
+async function loadCard() {
+  cardLoading = true; renderCard();
+  try {
+    const tab = await cardTab();
+    if (!tab?.id) throw new Error('请先打开校园卡移动端页面');
+    const response = await call({ type: 'GET_CARD_OVERVIEW', tabId: tab.id });
+    cardData = response.data; showNotice('校园卡数据已更新', 'success');
+  } catch (error) { cardData = null; showNotice(error.message); }
+  finally { cardLoading = false; renderCard(); }
+}
+
+function renderInbox() {
+  const stateElement = $('#inbox-state');
+  const summary = $('#inbox-summary');
+  const messages = $('#inbox-messages');
+  const todos = $('#inbox-todos');
+  if (!stateElement || !summary || !messages || !todos) return;
+  summary.replaceChildren(); messages.replaceChildren(); todos.replaceChildren();
+  if (inboxLoading) { stateElement.textContent = '正在读取事务与消息…'; return; }
+  if (!inboxData) { stateElement.textContent = '请打开并登录一网通办后读取。'; messages.append(campusEmpty('暂无校园消息')); todos.append(campusEmpty('暂无事务待办')); return; }
+  stateElement.textContent = `${inboxData.errors?.length ? `部分数据未读取：${inboxData.errors.join('、')} · ` : ''}更新于 ${new Date(inboxData.fetchedAt || Date.now()).toLocaleTimeString('zh-CN')}`;
+  for (const [label, value, note] of [['校园消息', inboxData.messages?.length || 0, '最近消息'], ['事务待办', inboxData.todos?.length || 0, '待处理事项'], ['我的预约', inboxData.bookings || 0, '待使用'], ['校车预约', inboxData.busBookings || 0, '待使用']]) {
+    const item = document.createElement('div'); item.className = 'summary-card';
+    const number = document.createElement('strong'); number.textContent = String(value);
+    const title = document.createElement('span'); title.textContent = label;
+    const hint = document.createElement('small'); hint.textContent = note;
+    item.append(number, title, hint); summary.append(item);
+  }
+  summary.hidden = false;
+  const appendItems = (container, items, emptyText, overdue = false) => {
+    if (!items.length) { container.append(campusEmpty(emptyText)); return; }
+    for (const item of items) {
+      const row = document.createElement('article'); row.className = `inbox-item${overdue && item.overdue ? ' is-overdue' : ''}`;
+      const title = document.createElement('strong'); title.textContent = item.title;
+      const meta = document.createElement('span'); meta.textContent = [item.source, item.time, item.overdue ? '已超时' : ''].filter(Boolean).join(' · ');
+      row.append(title, meta);
+      if (item.link && /^https?:\/\//i.test(item.link)) { const link = document.createElement('a'); link.href = item.link; link.target = '_blank'; link.rel = 'noreferrer'; link.textContent = '打开'; row.append(link); }
+      container.append(row);
+    }
+  };
+  appendItems(messages, inboxData.messages || [], '暂无校园消息');
+  appendItems(todos, inboxData.todos || [], '暂无事务待办', true);
+}
+
+async function inboxTab() {
+  const tabs = await chrome.tabs.query({});
+  const matches = tab => { try { return new URL(tab.url || '').hostname === 'ywtb.xjtu.edu.cn'; } catch { return false; } };
+  return tabs.find(tab => tab.active && matches(tab)) || tabs.find(matches) || null;
+}
+
+async function loadInbox() {
+  inboxLoading = true; renderInbox();
+  try {
+    const tab = await inboxTab();
+    if (!tab?.id) throw new Error('请先打开并登录一网通办');
+    const response = await call({ type: 'GET_SCHOOL_INBOX', tabId: tab.id });
+    inboxData = response.data; showNotice('事务与消息已更新', 'success');
+  } catch (error) { inboxData = null; showNotice(error.message); }
+  finally { inboxLoading = false; renderInbox(); }
 }
 
 function resourcesFor(course) {
@@ -1054,9 +1279,19 @@ function renderTodos() {
 function renderCourseList() {
   const list = $('#course-list');
   list.replaceChildren();
-  const courses = state.catalog.courses || [];
-  if (!courses.length) {
+  const allCourses = state.catalog.courses || [];
+  const query = courseSearchQuery.trim().toLowerCase();
+  const courses = allCourses.filter(course => {
+    if (!query) return true;
+    const resources = resourcesFor(course);
+    return `${course.name || ''} ${course.code || ''} ${course.semester || ''} ${resources.map(item => `${item.name || ''} ${item.activityTitle || ''}`).join(' ')}`.toLowerCase().includes(query);
+  });
+  if (!allCourses.length) {
     list.innerHTML = '<div class="empty-state">暂无课程</div>';
+    return;
+  }
+  if (!courses.length) {
+    list.innerHTML = '<div class="empty-state">没有匹配的课程</div>';
     return;
   }
   if (!courses.some(course => course.id === selectedCourseId)) selectedCourseId = courses[0].id;
@@ -1769,6 +2004,11 @@ $('#collapse-resources').addEventListener('click', () => {
   }
 });
 $('#resource-search').addEventListener('input', renderCatalog);
+$('#course-search').addEventListener('input', event => {
+  courseSearchQuery = event.target.value;
+  renderCourseList();
+  renderCourseFiles();
+});
 $('#export-catalog').addEventListener('click', exportCatalog);
 $('#portal-search').addEventListener('input', renderPortal);
 $('#portal-sync').addEventListener('click', syncPortal);
@@ -1776,6 +2016,10 @@ $('#session-check').addEventListener('click', checkSession);
 $('#task-search').addEventListener('input', renderTasks);
 $('#task-state-filter').addEventListener('change', renderTasks);
 $('#campus-refresh').addEventListener('click', loadCampus);
+$('#campus-grade-term').addEventListener('change', event => {
+  gradeTermFilter = event.target.value;
+  renderCampus();
+});
 $('#attendance-refresh').addEventListener('click', loadAttendance);
 $('#attendance-course-filter').addEventListener('change', event => {
   attendanceCourseFilter = event.target.value;
@@ -1785,6 +2029,11 @@ $('#attendance-status-filter').addEventListener('change', event => {
   attendanceStatusFilter = event.target.value;
   renderAttendance();
 });
+for (const [code, name] of LIBRARY_FLOORS) $('#library-floor').append(new Option(name, code));
+$('#library-refresh').addEventListener('click', loadLibrary);
+$('#library-seat-search').addEventListener('input', renderLibrary);
+$('#card-refresh').addEventListener('click', loadCard);
+$('#inbox-refresh').addEventListener('click', loadInbox);
 for (const button of document.querySelectorAll('[data-today-action]')) button.addEventListener('click', async () => {
   const action = button.dataset.todayAction;
   if (action === 'classrooms') {
@@ -1894,9 +2143,12 @@ const initialParams = new URLSearchParams(location.search);
 const initialView = initialParams.get('view');
 const initialDisplay = initialParams.get('display');
 if (['activities', 'sources', 'calendar'].includes(initialDisplay)) resourceView = initialDisplay;
-switchView(['resources', 'courses', 'campus', 'attendance', 'classrooms', 'portal', 'zyxf', 'tasks', 'settings'].includes(initialView) ? initialView : 'resources');
+switchView(['resources', 'courses', 'campus', 'attendance', 'library', 'card', 'inbox', 'classrooms', 'portal', 'zyxf', 'tasks', 'settings'].includes(initialView) ? initialView : 'resources');
 renderCampus();
 renderAttendance();
+renderLibrary();
+renderCard();
+renderInbox();
 renderClassrooms();
 if (initialView === 'classrooms') loadClassroomCodes();
 loadState().catch(error => showNotice(error.message));

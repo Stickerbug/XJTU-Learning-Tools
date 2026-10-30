@@ -245,7 +245,7 @@
   function sessionToken() {
     const keys = ['idToken', 'id_token', 'access_token', 'token', 'X-Id-Token'];
     for (const key of keys) {
-      const value = textValue(localStorage.getItem(key));
+      const value = textValue(localStorage.getItem(key) || sessionStorage.getItem(key));
       if (value) return value;
     }
     return '';
@@ -309,7 +309,11 @@
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (!['CAMPUS_GET_OVERVIEW', 'CAMPUS_GET_PORTAL', 'CAMPUS_GET_STATUS', 'CAMPUS_GET_CLASSROOM_CODES', 'CAMPUS_GET_CLASSROOMS'].includes(message?.type)) return false;
+    if (!['CAMPUS_GET_OVERVIEW', 'CAMPUS_GET_PORTAL', 'CAMPUS_GET_STATUS', 'CAMPUS_GET_CLASSROOM_CODES', 'CAMPUS_GET_CLASSROOMS', 'CAMPUS_GET_TOKEN'].includes(message?.type)) return false;
+    if (message.type === 'CAMPUS_GET_TOKEN') {
+      sendResponse({ ok: true, token: sessionToken() });
+      return false;
+    }
     const request = message.type === 'CAMPUS_GET_PORTAL' ? portalMenu()
       : message.type === 'CAMPUS_GET_STATUS' ? loginStatus()
         : message.type === 'CAMPUS_GET_CLASSROOM_CODES' ? classroomCodes()
