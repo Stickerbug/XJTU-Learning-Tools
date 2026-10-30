@@ -40,16 +40,45 @@
     }
   }
 
+  // 分层限制并发，缩短全量扫描时间，同时避免瞬时打满 LMS 接口。
+  const SCAN_COURSE_CONCURRENCY = 3;
+  const SCAN_ACTIVITY_CONCURRENCY = 6;
+  const SCAN_MARKED_CONCURRENCY = 3;
+
+  async function mapLimit(items, limit, worker) {
+    const results = new Array(items.length);
+    let cursor = 0;
+    const consume = async () => {
+      while (cursor < items.length) {
+        const index = cursor++;
+        results[index] = await worker(items[index], index);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, consume));
+    return results;
+  }
+
   let cachedUserId = null;
+  let userIdRequest = null;
   async function userId() {
     if (cachedUserId) return cachedUserId;
-    const response = await fetch('/user/index', { credentials: 'include' });
-    const html = await response.text();
-    const userBlock = html.match(/user\s*:\s*\{([\s\S]*?)\}\s*,\s*dept\s*:/)?.[1] || '';
-    const id = Number(userBlock.match(/["']?id["']?\s*:\s*["']?(\d+)/)?.[1]);
-    if (!id) throw new Error('无法识别当前思源学堂用户');
-    cachedUserId = id;
-    return id;
+    if (!userIdRequest) {
+      userIdRequest = (async () => {
+        const response = await fetch('/user/index', { credentials: 'include' });
+        const html = await response.text();
+        const userBlock = html.match(/user\s*:\s*\{([\s\S]*?)\}\s*,\s*dept\s*:/)?.[1] || '';
+        const id = Number(userBlock.match(/["']?id["']?\s*:\s*["']?(\d+)/)?.[1]);
+        if (!id) throw new Error('无法识别当前思源学堂用户');
+        cachedUserId = id;
+        return id;
+      })();
+    }
+    try {
+      return await userIdRequest;
+    } catch (error) {
+      userIdRequest = null;
+      throw error;
+    }
   }
 
   async function submissionList(activity) {
@@ -61,61 +90,67 @@
       : `/api/activities/${activity.id}/students/${await userId()}/submission_list`;
     if (activity.submit_by_group && !activity.group_id) return null;
     const data = await api(url);
-    for (const submission of data.list || []) {
-      if (!(submission.uploads || []).length) continue;
+    await mapLimit(data.list || [], SCAN_MARKED_CONCURRENCY, async submission => {
+      if (!(submission.uploads || []).length) return;
       try {
-        const marked = await api(`/api/submissions/${submission.id}/marked_attachments`);
-        submission.marked_rules = marked.rules || [];
+        submission.marked_payload = await api(`/api/submissions/${submission.id}/marked_attachments`);
       } catch {
-        submission.marked_rules = [];
+        submission.marked_payload = { rules: [] };
       }
-    }
+    });
     return data;
   }
 
   async function scanCourses() {
     const payload = await myCourses();
     const courses = payload.courses || [];
-    const results = [];
-    for (let index = 0; index < courses.length; index += 1) {
-      const course = courses[index];
+    let completed = 0;
+    const reportProgress = courseName => {
       chrome.runtime.sendMessage({
         type: 'SCAN_PROGRESS',
-        done: index,
+        done: completed,
         total: courses.length,
-        courseName: course.name
+        courseName
       }).catch(() => {});
-      const activitiesPayload = await api(`/api/courses/${course.id}/activities?sub_course_id=0`);
+    };
+    reportProgress('');
+    // 待办与课程扫描互不依赖，提前并行请求。
+    const todosRequest = api('/api/todos?no-intercept=true').catch(() => null);
+    const results = await mapLimit(courses, SCAN_COURSE_CONCURRENCY, async course => {
+      const [activitiesPayload, bulletins] = await Promise.all([
+        api(`/api/courses/${course.id}/activities?sub_course_id=0`),
+        api(`/api/courses/${course.id}/bulletins`)
+          .then(payload => payload.bulletins || [])
+          .catch(() => [])
+      ]);
       const activities = activitiesPayload.activities || [];
-      const details = {};
-      let bulletins = [];
-      try {
-        const bulletinPayload = await api(`/api/courses/${course.id}/bulletins`);
-        bulletins = bulletinPayload.bulletins || [];
-      } catch {}
       const candidates = activities.filter(activity =>
         ['material', 'homework', 'lecture_live', 'courseware', 'interaction', 'online_video'].includes(activity.type) ||
         (activity.uploads || []).length > 0
       );
-      for (const brief of candidates) {
-        const activity = await api(`/api/activities/${brief.id}?sub_course_id=0`);
-        let references = [];
-        let submissions = null;
-        try {
-          const referencePayload = await api(`/api/activities/${brief.id}/upload_references`);
-          references = referencePayload.references || [];
-        } catch {}
-        try {
-          submissions = await submissionList(activity);
-        } catch {}
-        details[brief.id] = { activity, references, submissions };
-      }
-      results.push({ course, activities, details, bulletins });
-    }
-    let todos = null;
-    try {
-      todos = await api('/api/todos?no-intercept=true');
-    } catch {}
+      const entries = await mapLimit(candidates, SCAN_ACTIVITY_CONCURRENCY, async brief => {
+        const detail = await api(`/api/activities/${brief.id}?sub_course_id=0`);
+        // 详情接口可能省略 deadline 等列表字段，只补缺，不覆盖详情已有值。
+        const activity = {
+          ...brief,
+          ...detail,
+          start_time: detail.start_time || brief.start_time || null,
+          end_time: detail.end_time || brief.end_time || null,
+          deadline: detail.deadline || brief.deadline || null
+        };
+        const [references, submissions] = await Promise.all([
+          api(`/api/activities/${brief.id}/upload_references`)
+            .then(payload => payload.references || [])
+            .catch(() => []),
+          submissionList(activity).catch(() => null)
+        ]);
+        return [brief.id, { activity, references, submissions }];
+      });
+      completed += 1;
+      reportProgress(course.name);
+      return { course, activities, details: Object.fromEntries(entries), bulletins };
+    });
+    const todos = await todosRequest;
     chrome.runtime.sendMessage({ type: 'SCAN_PROGRESS', done: courses.length, total: courses.length }).catch(() => {});
     return { courses: results, todos };
   }

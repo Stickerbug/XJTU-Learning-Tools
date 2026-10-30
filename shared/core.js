@@ -132,6 +132,11 @@ function baseResource(course, activity, kind, source) {
     courseName: course.name,
     activityId: activity.id,
     activityTitle: activity.title,
+    activityType: activity.type || null,
+    moduleId: activity.module_id || null,
+    startTime: activity.start_time || activity.created_at || null,
+    endTime: activity.end_time || null,
+    dueAt: activity.type === 'homework' ? activity.deadline || activity.end_time || null : null,
     kind,
     source
   };
@@ -160,6 +165,7 @@ function replayResource(course, activity, replay = {}) {
     key: `replay:${activity.id}`,
     name: activity.title,
     title: activity.title,
+    duration: replay.duration || activity.data?.duration || null,
     size: replay.size || null,
     status: replay.status || 'FINISHED',
     replayCode: replay.replayCode || null,
@@ -194,6 +200,53 @@ function addEmbeddedResources(course, activity, resources) {
   }
 }
 
+export function normalizeMarkedRules(payload) {
+  const normalized = [];
+  const addRule = (name, url) => {
+    if (typeof name !== 'string' || !name.trim() || typeof url !== 'string' || !url.trim()) return;
+    normalized.push({ origin_upload_name: name.trim(), url: url.trim() });
+  };
+  for (const rule of Array.isArray(payload?.rules) ? payload.rules : []) {
+    if (!rule || typeof rule !== 'object') continue;
+    addRule(
+      rule.origin_upload_name || rule.origin_name || rule.name,
+      rule.marked_attachment_url || rule.attachment_url || rule.url
+    );
+  }
+  if (normalized.length) return normalized;
+
+  const entries = [];
+  if (Array.isArray(payload)) entries.push(...payload);
+  if (payload && typeof payload === 'object') {
+    for (const key of ['marked_attachment_infos', 'marked_attachments', 'attachments', 'items', 'list', 'data', 'records', 'results']) {
+      if (Array.isArray(payload[key])) entries.push(...payload[key]);
+    }
+  }
+  for (const info of entries) {
+    if (!info || typeof info !== 'object') continue;
+    const origins = [
+      info.origin_upload, info.originUpload, info.origin_attachment, info.originAttachment,
+      info.upload, info.source_upload, info.sourceUpload, info.attachment, info.origin, info.source
+    ].filter(value => value && typeof value === 'object');
+    const originCandidates = origins.flatMap(value => value.upload && typeof value.upload === 'object' ? [value.upload, value] : [value]);
+    const origin = originCandidates.find(value => typeof value.name === 'string' && value.name.trim());
+    const markedCandidates = [info.marked_attachment, info.markedAttachment, info.marked_upload, info.markedUpload, info.attachment, info]
+      .filter(value => value && typeof value === 'object');
+    let url = null;
+    for (const candidate of markedCandidates) {
+      for (const key of ['url', 'download_url', 'preview_url', 'attachment_url', 'signed_url', 'file_url', 'blob_url', 'href', 'link']) {
+        if (typeof candidate[key] === 'string' && candidate[key].trim()) {
+          url = candidate[key];
+          break;
+        }
+      }
+      if (url) break;
+    }
+    addRule(origin?.name, url);
+  }
+  return normalized;
+}
+
 function addSubmissionResources(course, activity, submissionData, resources) {
   if (!submissionData) return;
   const addUploads = (uploads, source, submissionId) => {
@@ -208,9 +261,9 @@ function addSubmissionResources(course, activity, submissionData, resources) {
   for (const submission of submissionData.list || []) {
     addUploads(submission.uploads, RESOURCE_SOURCES.submission, submission.id);
     addUploads(submission.submission_correct?.uploads, RESOURCE_SOURCES.correct, submission.id);
-    for (const rule of submission.marked_rules || []) {
-      const originName = rule.origin_upload_name || rule.origin_name || rule.name;
-      if (!originName) continue;
+    const markedPayload = submission.marked_payload || { rules: submission.marked_rules || [] };
+    for (const rule of normalizeMarkedRules(markedPayload)) {
+      const originName = rule.origin_upload_name;
       resources.push({
         ...baseResource(course, activity, 'marked', RESOURCE_SOURCES.marked),
         key: `marked:${submission.id}:${originName}`,
@@ -236,11 +289,21 @@ export function summarizeCourse(course, activities, activityDetails = {}, course
       courseName: course.name,
       title: item.title,
       startTime: item.start_time,
+      endTime: item.end_time,
       duration: item.data?.duration || null,
+      moduleId: item.module_id || null,
       size: item.lesson_resource.size || null,
       status: item.lesson_resource.properties?.status || 'UNKNOWN'
     }));
-  const resources = replays.map(replay => replayResource(course, { id: replay.activityId, title: replay.title }, replay));
+  const resources = replays.map(replay => replayResource(course, {
+    id: replay.activityId,
+    title: replay.title,
+    type: 'lesson',
+    module_id: replay.moduleId,
+    start_time: replay.startTime,
+    end_time: replay.endTime,
+    data: { duration: replay.duration }
+  }, replay));
   const uploadKeys = new Set();
   for (const brief of published) {
     const detail = activityDetails[brief.id]?.activity || brief;
@@ -362,6 +425,14 @@ export function assertDownloadUrl(value) {
   if (url.protocol !== 'https:' || !allowed.has(url.hostname)) {
     throw new Error('拒绝使用非学校或学辅资源地址');
   }
+  return url.href;
+}
+
+export function assertZyxfFileUrl(value) {
+  const url = new URL(value);
+  const hostname = url.hostname.toLowerCase();
+  const allowed = hostname === 'zyxf.top' || hostname.endsWith('.zyxf.top') || hostname.endsWith('.aliyuncs.com');
+  if (url.protocol !== 'https:' || !allowed) throw new Error('学辅返回了不受信任的文件地址');
   return url.href;
 }
 

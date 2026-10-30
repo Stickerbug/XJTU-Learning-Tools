@@ -10,6 +10,8 @@ import {
   buildReplayFilename,
   buildUploadFilename,
   assertDownloadUrl,
+  assertZyxfFileUrl,
+  normalizeMarkedRules,
   cleanError
 } from './shared/core.js';
 
@@ -93,8 +95,8 @@ function taskKey(kind, activityId, discriminator) {
   return `${kind}:${activityId}:${discriminator}`;
 }
 
-function createTask({ kind, originTabId, courseId, courseName, activityId, activityTitle, label, uploadId, referenceId, uploadName, fileKey, source, size, replayCode, liveDirect, submissionId, originUploadName }) {
-  const discriminator = kind === 'replay' ? label : kind === 'upload' || kind === 'pdf' ? uploadId : kind === 'marked' ? originUploadName : fileKey;
+function createTask({ kind, originTabId, courseId, courseName, activityId, activityTitle, label, uploadId, referenceId, uploadName, fileKey, source, size, replayCode, liveDirect, submissionId, originUploadName, zyxfId }) {
+  const discriminator = kind === 'replay' ? label : kind === 'upload' || kind === 'pdf' ? uploadId : kind === 'marked' ? originUploadName : kind === 'zyxf' ? zyxfId : fileKey;
   const key = taskKey(kind, activityId, discriminator);
   const existing = tasks.find(task => task.key === key && !['completed', 'canceled'].includes(task.state));
   if (existing) return existing;
@@ -119,6 +121,7 @@ function createTask({ kind, originTabId, courseId, courseName, activityId, activ
     liveDirect: Boolean(liveDirect),
     submissionId: submissionId || null,
     originUploadName: originUploadName || null,
+    zyxfId: zyxfId || null,
     state: 'queued',
     downloadId: null,
     bytesReceived: 0,
@@ -167,6 +170,52 @@ async function queueDirect(message) {
     source: '媒体直链'
   });
   directUrls.set(task.id, media.url);
+  await chrome.storage.local.set({ tasks });
+  broadcast();
+  await pump();
+  return { ok: true };
+}
+
+async function zyxfJson(path) {
+  const response = await fetch(`https://zyxf.top${path}`, {
+    credentials: 'omit',
+    headers: { Accept: 'application/json' }
+  });
+  if (!response.ok) {
+    let message = `学辅请求失败（${response.status}）`;
+    try {
+      const payload = await response.json();
+      if (payload?.error) message = String(payload.error);
+    } catch {}
+    throw new Error(message);
+  }
+  return response.json();
+}
+
+async function zyxfFileLink(fileId, download = false) {
+  const id = Number(fileId);
+  if (!Number.isInteger(id) || id <= 0) throw new Error('无效的学辅文件 ID');
+  const payload = await zyxfJson(`/api/files/${id}/url${download ? '?download=1' : ''}`);
+  return { ...payload, url: assertZyxfFileUrl(payload.url) };
+}
+
+async function queueZyxf(message) {
+  for (const item of message.items || []) {
+    const id = Number(item.id);
+    if (!Number.isInteger(id) || id <= 0) continue;
+    createTask({
+      kind: 'zyxf',
+      originTabId: null,
+      courseId: 0,
+      courseName: '仲英学辅',
+      activityId: id,
+      activityTitle: item.folder_path || '资料库',
+      uploadName: item.name,
+      source: '仲英学辅',
+      size: item.size,
+      zyxfId: id
+    });
+  }
   await chrome.storage.local.set({ tasks });
   broadcast();
   await pump();
@@ -392,11 +441,18 @@ async function resolveDirect(task) {
 
 async function resolveMarked(task) {
   const response = await sendToLms(task.originTabId, { type: 'LMS_GET_MARKED', submissionId: task.submissionId });
-  const rules = response.data?.rules || [];
-  const rule = rules.find(item => (item.origin_upload_name || item.origin_name || item.name) === task.originUploadName);
-  const url = rule?.marked_attachment_url || rule?.attachment_url || rule?.url;
-  if (!url) throw new Error('批注附件已不存在，请重新扫描');
-  return { url: assertDownloadUrl(url), filename: resourceFilename(task), totalBytes: task.size || 0 };
+  const rule = normalizeMarkedRules(response.data).find(item => item.origin_upload_name === task.originUploadName);
+  if (!rule?.url) throw new Error('批注附件已不存在，请重新扫描');
+  return { url: assertDownloadUrl(rule.url), filename: resourceFilename(task), totalBytes: task.size || 0 };
+}
+
+async function resolveZyxf(task) {
+  const link = await zyxfFileLink(task.zyxfId, true);
+  return {
+    url: link.url,
+    filename: resourceFilename(task),
+    totalBytes: Number(link.size) || task.size || 0
+  };
 }
 
 async function resolveTask(task) {
@@ -404,6 +460,7 @@ async function resolveTask(task) {
   if (task.kind === 'embedded') return resolveEmbedded(task);
   if (task.kind === 'direct') return resolveDirect(task);
   if (task.kind === 'marked') return resolveMarked(task);
+  if (task.kind === 'zyxf') return resolveZyxf(task);
   return resolveUpload(task);
 }
 
@@ -444,7 +501,8 @@ async function resolveAndStart(taskId) {
   try {
     const resolved = await resolveTask(task);
     if (stale()) return;
-    await preflightDownload(resolved.url);
+    // 学辅签名地址由只读接口即时签发，避免额外跨域预检和消耗二次请求。
+    if (task.kind !== 'zyxf') await preflightDownload(resolved.url);
     if (stale()) return;
     task.totalBytes = resolved.totalBytes || task.totalBytes;
     task.filename = resolved.filename;
@@ -585,12 +643,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return queueDirect(message);
       case 'QUEUE_BATCH':
         return queueBatch(message);
+      case 'QUEUE_ZYXF':
+        return queueZyxf(message);
+      case 'ZYXF_SEARCH': {
+        const query = String(message.query || '').trim();
+        if (!query) return { ok: true, folders: [], files: [], truncated: false };
+        if (query.length > 64) throw new Error('搜索关键词最多 64 个字符');
+        return { ok: true, ...(await zyxfJson(`/api/search?q=${encodeURIComponent(query)}`)) };
+      }
+      case 'ZYXF_LIST': {
+        const folderId = Number(message.folderId);
+        if (!Number.isInteger(folderId) || folderId < 0) throw new Error('无效的学辅目录 ID');
+        return { ok: true, ...(await zyxfJson(`/api/folders/${folderId}/contents?sort=manual&order=asc`)) };
+      }
+      case 'ZYXF_OPEN': {
+        const link = await zyxfFileLink(message.fileId);
+        await chrome.tabs.create({ url: link.url });
+        return { ok: true };
+      }
       case 'SCAN_COURSES':
         return scanCourses(message.tabId);
       case 'SAVE_SETTINGS':
         settings = {
           ...settings,
-          concurrency: [1, 2].includes(Number(message.settings?.concurrency)) ? Number(message.settings.concurrency) : 1,
+          concurrency: [1, 2, 3, 4].includes(Number(message.settings?.concurrency)) ? Number(message.settings.concurrency) : 1,
           root: String(message.settings?.root || 'XJTU').trim() || 'XJTU',
           defaultTrack: ['ENCODER', 'INSTRUCTOR', 'BOTH'].includes(message.settings?.defaultTrack) ? message.settings.defaultTrack : 'ENCODER'
         };

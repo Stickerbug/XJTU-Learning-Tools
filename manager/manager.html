@@ -15,6 +15,7 @@
     <nav aria-label="主要功能">
       <button class="nav-button active" data-view="resources" type="button">批量下载</button>
       <button class="nav-button" data-view="courses" type="button">课程</button>
+      <button class="nav-button" data-view="zyxf" type="button">学辅资料</button>
       <button class="nav-button" data-view="tasks" type="button">下载任务 <span id="nav-task-count"></span></button>
       <button class="nav-button" data-view="settings" type="button">设置</button>
     </nav>
@@ -43,6 +44,17 @@
       </div>
       <div class="search-bar">
         <input id="resource-search" type="search" placeholder="搜索课程、活动或文件名" aria-label="搜索课程文件">
+        <div class="resource-tools">
+          <div class="view-switch" role="group" aria-label="资源显示方式">
+            <button class="active" data-resource-view="activities" type="button">按活动</button>
+            <button data-resource-view="sources" type="button">按来源</button>
+            <button data-resource-view="calendar" type="button">回放日历</button>
+          </div>
+          <div class="fold-actions">
+            <button id="expand-resources" class="text-button" type="button">全部展开</button>
+            <button id="collapse-resources" class="text-button" type="button">全部折叠</button>
+          </div>
+        </div>
       </div>
       <details id="todo-panel" class="todo-panel" hidden>
         <summary id="todo-summary">学习待办</summary>
@@ -69,7 +81,7 @@
           <div class="course-detail-head">
             <div>
               <h1 id="selected-course-name">选择一门课程</h1>
-              <p id="selected-course-meta" class="muted">文件按来源分类显示</p>
+              <p id="selected-course-meta" class="muted">文件按活动分组显示</p>
             </div>
             <button id="download-course-selected" class="button primary queue-selected" type="button">下载所选文件</button>
           </div>
@@ -78,6 +90,26 @@
           </div>
         </section>
       </div>
+    </section>
+
+    <section id="view-zyxf" class="view" hidden>
+      <div class="toolbar">
+        <div>
+          <h1>仲英学辅资料库</h1>
+          <p class="muted">只读检索与下载，不上传资料，不保存临时签名地址。</p>
+        </div>
+        <div class="toolbar-actions">
+          <button id="zyxf-browse-root" class="button secondary" type="button">浏览根目录</button>
+          <a class="button secondary" href="https://zyxf.top" target="_blank" rel="noreferrer">打开资料站</a>
+        </div>
+      </div>
+      <div class="search-bar zyxf-search-bar">
+        <input id="zyxf-search" type="search" maxlength="64" placeholder="搜索文件名、课程、拼音或首字母" aria-label="搜索仲英学辅资料">
+        <button id="zyxf-search-button" class="button primary" type="button">搜索资料</button>
+      </div>
+      <div id="zyxf-breadcrumb" class="breadcrumb"></div>
+      <p id="zyxf-meta" class="muted panel-meta">输入关键词搜索，或浏览资料目录。</p>
+      <div id="zyxf-results"></div>
     </section>
 
     <section id="view-tasks" class="view" hidden>
@@ -100,7 +132,7 @@
         <h1>下载设置</h1>
         <label class="setting-row">
           <span>同时下载任务</span>
-          <select id="setting-concurrency"><option value="1">1 个</option><option value="2">2 个</option></select>
+          <select id="setting-concurrency"><option value="1">1 个</option><option value="2">2 个</option><option value="3">3 个</option><option value="4">4 个</option></select>
         </label>
         <label class="setting-row">
           <span>下载目录</span>
@@ -125,6 +157,14 @@
           <a href="https://github.com/yan-xiaoo/XJTUToolBox" target="_blank" rel="noreferrer">XJTUToolBox · 桌面成绩、考勤与空教室</a>
           <a href="https://github.com/yeliqin666/xjtu-toolbox-android" target="_blank" rel="noreferrer">岱宗盒子 · Android 综合校园工具</a>
           <a href="https://github.com/Hz162/XJTU-Course-Genius" target="_blank" rel="noreferrer">XJTU-Course-Genius · 选课辅助</a>
+        </div>
+      </div>
+      <div class="settings-block">
+        <h2>开放课程资料</h2>
+        <div class="link-list vertical">
+          <a href="https://github.com/cantjie/XJTU-Share" target="_blank" rel="noreferrer">XJTU-Share · 西安交通大学课程资料共享计划</a>
+          <a href="https://github.com/DANNHIROAKI/XJTU-CS-Courses" target="_blank" rel="noreferrer">XJTU-CS-Courses · 计算机课程集</a>
+          <a href="https://github.com/yijunquan-afk/XJTUSE-NOTES" target="_blank" rel="noreferrer">XJTUSE-NOTES · 软件工程本科笔记</a>
         </div>
       </div>
       <div class="settings-block">

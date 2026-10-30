@@ -13,6 +13,8 @@ import {
   normalizeTodos,
   matchScore,
   assertDownloadUrl,
+  assertZyxfFileUrl,
+  normalizeMarkedRules,
   cleanError
 } from '../shared/core.js';
 
@@ -153,4 +155,46 @@ test('搜索支持前缀、子串和紧凑汉字子序列', () => {
   assert.equal(matchScore('复习', '高等数学复习资料'), 80);
   assert.equal(matchScore('高等', '高等数学'), 100);
   assert.equal(matchScore('高数', '高等数学'), 60);
+});
+
+test('资源保留活动分组与回放日历所需的时间字段', () => {
+  const course = { id: 1, name: '课程' };
+  const activities = [
+    { id: 10, type: 'lesson', title: '回放', published: true, module_id: 7, start_time: '2026-10-20T08:00:00', end_time: '2026-10-20T09:40:00', data: { duration: 100 }, lesson_resource: { size: 100, properties: { status: 'FINISHED' } } },
+    { id: 11, type: 'homework', title: '第二章作业', published: true, deadline: '2026-10-30T23:59:00', uploads: [] }
+  ];
+  const details = {
+    11: { activity: { ...activities[1], uploads: [{ id: 20, name: '题目.pdf', type: 'document', size: 20 }] }, references: [] }
+  };
+  const result = summarizeCourse(course, activities, details);
+  const replay = result.resources.find(item => item.kind === 'replay');
+  const upload = result.resources.find(item => item.kind === 'upload');
+  assert.equal(replay.startTime, '2026-10-20T08:00:00');
+  assert.equal(replay.endTime, '2026-10-20T09:40:00');
+  assert.equal(replay.activityType, 'lesson');
+  assert.equal(replay.moduleId, 7);
+  assert.equal(replay.duration, 100);
+  assert.equal(upload.activityType, 'homework');
+  assert.equal(upload.dueAt, '2026-10-30T23:59:00');
+});
+
+test('批注附件兼容 rules 与 marked_attachment_infos 响应', () => {
+  const direct = normalizeMarkedRules({ rules: [{ origin_upload_name: '提交.pdf', marked_attachment_url: 'https://media.xjtu.edu.cn/download/file/a?token=x' }] });
+  assert.equal(direct[0].origin_upload_name, '提交.pdf');
+  assert.equal(direct[0].url.includes('token=x'), true);
+  const nested = normalizeMarkedRules({
+    marked_attachment_infos: [{
+      origin_upload: { upload: { name: '作业.docx' } },
+      marked_attachment: { url: 'https://media.xjtu.edu.cn/download/file/b?token=y' }
+    }]
+  });
+  assert.deepEqual(nested, [{ origin_upload_name: '作业.docx', url: 'https://media.xjtu.edu.cn/download/file/b?token=y' }]);
+});
+
+test('学辅临时文件地址只允许可信 HTTPS 域名', () => {
+  const oss = 'https://xjtu-zyxf.oss-cn-beijing.aliyuncs.com/course/file.pdf?X-Amz-Signature=x';
+  assert.equal(assertZyxfFileUrl(oss), oss);
+  assert.equal(assertZyxfFileUrl('https://zyxf.top/api/files/1/url'), 'https://zyxf.top/api/files/1/url');
+  assert.throws(() => assertZyxfFileUrl('https://aliyuncs.com.evil.example/file'));
+  assert.throws(() => assertZyxfFileUrl('http://xjtu-zyxf.oss-cn-beijing.aliyuncs.com/file'));
 });

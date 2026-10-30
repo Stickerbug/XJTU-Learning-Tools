@@ -22,10 +22,12 @@ const demoState = {
         id: 33122, name: '物质结构与性质-无机篇', code: '202620271CHEM25190902', semester: '第1学期',
         replays: [], materials: [], homework: [],
         resources: [
-          { key: 'replay:1299146', kind: 'replay', source: '课程回放', activityId: 1299146, courseId: 33122, courseName: '物质结构与性质-无机篇', activityTitle: '2026-09-14 19:40 回放', name: '2026-09-14 19:40 回放', size: 1269765739 },
-          { key: 'upload:1413335:6488594', kind: 'upload', source: '课件附件', activityId: 1413335, courseId: 33122, courseName: '物质结构与性质-无机篇', activityTitle: '第一章', name: '第1章 原子结构(1).pdf', uploadId: 6488594, referenceId: 3214697, size: 16376925 },
-          { key: 'upload:1597298:7878878', kind: 'upload', source: '作业附件', activityId: 1597298, courseId: 33122, courseName: '物质结构与性质-无机篇', activityTitle: 'Lecture-2', name: 'Keys_Chapter 4-2(3).png', uploadId: 7878878, referenceId: 3861914, size: 140072 },
-          { key: 'embedded:1597298:85308d8c', kind: 'embedded', source: '页面嵌入文件', activityId: 1597298, courseId: 33122, courseName: '物质结构与性质-无机篇', activityTitle: 'Lecture-2', name: '页面示例图片.png', fileKey: '85308d8c', size: null }
+          { key: 'replay:1299146', kind: 'replay', source: '课程回放', activityId: 1299146, activityType: 'lesson', courseId: 33122, courseName: '物质结构与性质-无机篇', activityTitle: '第三周 周二回放', name: '第三周 周二回放', startTime: '2026-10-14T19:40:00', endTime: '2026-10-14T20:30:00', duration: 50, size: 1269765739 },
+          { key: 'replay:1299147', kind: 'replay', source: '课程回放', activityId: 1299147, activityType: 'lesson', courseId: 33122, courseName: '物质结构与性质-无机篇', activityTitle: '第三周 周五回放', name: '第三周 周五回放', startTime: '2026-10-16T19:40:00', endTime: '2026-10-16T20:30:00', duration: 50, size: 1269765739 },
+          { key: 'upload:1413335:6488594', kind: 'upload', source: '课件附件', activityId: 1413335, activityType: 'material', courseId: 33122, courseName: '物质结构与性质-无机篇', activityTitle: '第一章', name: '第1章 原子结构(1).pdf', startTime: '2026-10-10T08:00:00', uploadId: 6488594, referenceId: 3214697, size: 16376925 },
+          { key: 'upload:1597298:7878878', kind: 'upload', source: '作业附件', activityId: 1597298, activityType: 'homework', courseId: 33122, courseName: '物质结构与性质-无机篇', activityTitle: 'Lecture-2', name: 'Keys_Chapter 4-2(3).png', dueAt: '2026-10-29T23:59:00', uploadId: 7878878, referenceId: 3861914, size: 140072 },
+          { key: 'embedded:1597298:85308d8c', kind: 'embedded', source: '页面嵌入文件', activityId: 1597298, activityType: 'homework', courseId: 33122, courseName: '物质结构与性质-无机篇', activityTitle: 'Lecture-2', name: '页面示例图片.png', dueAt: '2026-10-29T23:59:00', fileKey: '85308d8c', size: null },
+          { key: 'upload:1597299:7878879', kind: 'upload', source: '我的提交', activityId: 1597299, activityType: 'homework', courseId: 33122, courseName: '物质结构与性质-无机篇', activityTitle: 'Lecture-3', name: '第三章作业.pdf', dueAt: '2026-11-05T23:59:00', uploadId: 7878879, referenceId: 3861915, size: 240072 }
         ]
       },
       { id: 33557, name: '计算之美', code: '202620271COMP30102701', semester: '第1学期', replays: [], materials: [], homework: [] }
@@ -108,6 +110,9 @@ try {
   await screenshot(`http://127.0.0.1:${port}/popup/popup.html`, path.join(artifacts, 'popup.png'), '384,620');
   await screenshot(`http://127.0.0.1:${port}/manager/manager.html?view=tasks`, path.join(artifacts, 'manager.png'), '1280,850');
   await screenshot(`http://127.0.0.1:${port}/manager/manager.html?view=courses`, path.join(artifacts, 'courses.png'), '1280,850');
+  await screenshot(`http://127.0.0.1:${port}/manager/manager.html?view=resources`, path.join(artifacts, 'resources.png'), '1280,850');
+  await screenshot(`http://127.0.0.1:${port}/manager/manager.html?view=resources&display=calendar`, path.join(artifacts, 'calendar.png'), '1280,850');
+  await screenshot(`http://127.0.0.1:${port}/manager/manager.html?view=zyxf`, path.join(artifacts, 'zyxf.png'), '1280,850');
   console.log('UI smoke screenshots created');
 } finally {
   await new Promise(resolve => server.close(resolve));
