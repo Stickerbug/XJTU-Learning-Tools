@@ -1,4 +1,4 @@
-import { formatBytes, RESOURCE_SOURCES, matchScore } from '../shared/core.js';
+import { formatBytes, RESOURCE_SOURCES, matchScore, safeFilePart } from '../shared/core.js';
 
 const $ = selector => document.querySelector(selector);
 let state = { settings: {}, tasks: [], catalog: { courses: [] }, scanState: {} };
@@ -23,6 +23,42 @@ const sourceOrder = [
   RESOURCE_SOURCES.direct
 ];
 
+const PORTAL_SITES = [
+  { category: '学习', name: '思源学堂', description: '课程、回放、课件和作业', url: 'https://lms.xjtu.edu.cn/' },
+  { category: '学习', name: '教务系统', description: '课表、成绩、考试和选课', url: 'https://jwxt.xjtu.edu.cn/' },
+  { category: '学习', name: '我的课表', description: '教务系统当前学期课程安排', url: 'https://jwxt.xjtu.edu.cn/jwapp/sys/wdkb/modules/xskcb/xskcb.do' },
+  { category: '学习', name: '成绩查询', description: '课程成绩和学分信息', url: 'https://jwxt.xjtu.edu.cn/jwapp/sys/cjcx/modules/cjcx/xscjcx.do' },
+  { category: '学习', name: '考试安排', description: '考试时间和地点', url: 'https://jwxt.xjtu.edu.cn/jwapp/sys/studentWdksapApp/modules/wdksap/wdksap.do' },
+  { category: '学习', name: '空教室查询', description: '按时间查询可用教室', url: 'https://jwxt.xjtu.edu.cn/jwapp/sys/kxjas/modules/kxjscx/cxkxjs.do' },
+  { category: '学习', name: '选课服务', description: '本科生选课与培养方案', url: 'https://xkfw.xjtu.edu.cn/' },
+  { category: '学习', name: '教务处', description: '教学通知、校历和教学信息', url: 'https://dean.xjtu.edu.cn/' },
+  { category: '学习', name: '一网通办', description: '校园服务统一入口', url: 'https://ywtb.xjtu.edu.cn/' },
+  { category: '服务', name: '校园卡', description: '余额、消费和卡片服务', url: 'https://ncard.xjtu.edu.cn/' },
+  { category: '服务', name: '学生邮箱', description: '学生电子邮件系统', url: 'https://stu.xjtu.edu.cn/' },
+  { category: '服务', name: '网络信息中心', description: '校园网络、VPN和账号服务', url: 'https://nic.xjtu.edu.cn/' },
+  { category: '服务', name: 'WebVPN', description: '校外访问校内服务', url: 'https://webvpn.xjtu.edu.cn/' },
+  { category: '服务', name: '场馆服务', description: '场馆预约与校园服务', url: 'https://jdfw.xjtu.edu.cn/' },
+  { category: '信息', name: '西安交通大学官网', description: '学校新闻、通知和公开信息', url: 'https://www.xjtu.edu.cn/' },
+  { category: '信息', name: '交大新闻网', description: '校园新闻和专题报道', url: 'https://news.xjtu.edu.cn/' },
+  { category: '信息', name: '信息公开网', description: '学校信息公开内容', url: 'https://xxgk.xjtu.edu.cn/' },
+  { category: '信息', name: '学术资源平台', description: '讲座、会议和学术活动', url: 'https://meeting.xjtu.edu.cn/' },
+  { category: '信息', name: '图书馆', description: '馆藏检索、数据库和座位服务', url: 'https://www.lib.xjtu.edu.cn/' },
+  { category: '信息', name: '科技在线', description: '科研项目、成果和科技服务', url: 'https://std.xjtu.edu.cn/' },
+  { category: '信息', name: '思源直播', description: '校园直播和活动回放', url: 'https://zhibo6.xjtu.edu.cn/' },
+  { category: '信息', name: '音视频网', description: '校园音视频资源', url: 'https://video.xjtu.edu.cn/' },
+  { category: '服务', name: '办公自动化', description: '校内办公与流程服务', url: 'https://oa.xjtu.edu.cn/' },
+  { category: '服务', name: '教工邮箱', description: '教职工电子邮件系统', url: 'https://webmail.xjtu.edu.cn/' },
+  { category: '工具', name: '仲英学辅', description: '课程资料搜索与下载', url: 'https://zyxf.top/' },
+  { category: '工具', name: '完整站点目录', description: '更多校园站点和分类入口', url: 'https://xjtu-links.com/' },
+  { category: '工具', name: 'XJTUToolBox', description: '桌面端成绩、考勤和空教室工具', url: 'https://github.com/yan-xiaoo/XJTUToolBox' },
+  { category: '工具', name: '岱宗盒子', description: 'Android 综合校园工具', url: 'https://github.com/yeliqin666/xjtu-toolbox-android' },
+  { category: '工具', name: 'XJTU Course Genius', description: '选课辅助工具', url: 'https://github.com/Hz162/XJTU-Course-Genius' }
+];
+const PORTAL_CATEGORIES = ['全部', ...new Set(PORTAL_SITES.map(site => site.category))];
+let portalCategory = '全部';
+let campusData = null;
+let campusLoading = false;
+
 const STATE_NAMES = {
   queued: '排队中', resolving: '解析地址', downloading: '下载中', paused: '已暂停',
   completed: '已完成', failed: '失败', canceled: '已取消'
@@ -45,6 +81,116 @@ async function call(message) {
 function switchView(view) {
   for (const element of document.querySelectorAll('.view')) element.hidden = element.id !== `view-${view}`;
   for (const button of document.querySelectorAll('.nav-button')) button.classList.toggle('active', button.dataset.view === view);
+}
+
+function renderPortal() {
+  const query = String($('#portal-search')?.value || '').trim().toLowerCase();
+  const filters = $('#portal-filters');
+  const list = $('#portal-list');
+  if (!filters || !list) return;
+  filters.replaceChildren();
+  const switcher = document.createElement('div');
+  switcher.className = 'view-switch';
+  for (const category of PORTAL_CATEGORIES) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = category;
+    button.className = category === portalCategory ? 'active' : '';
+    button.addEventListener('click', () => {
+      portalCategory = category;
+      renderPortal();
+    });
+    switcher.append(button);
+  }
+  filters.append(switcher);
+  const sites = PORTAL_SITES.filter(site => {
+    if (portalCategory !== '全部' && site.category !== portalCategory) return false;
+    if (!query) return true;
+    return `${site.name} ${site.description} ${site.url}`.toLowerCase().includes(query);
+  });
+  list.replaceChildren();
+  for (const site of sites) {
+    const link = document.createElement('a');
+    link.href = site.url;
+    link.target = '_blank';
+    link.rel = 'noreferrer';
+    link.title = site.url;
+    link.textContent = `${site.name} · ${site.description}`;
+    list.append(link);
+  }
+  $('#portal-empty').hidden = sites.length > 0;
+}
+
+function campusEmpty(message) {
+  const element = document.createElement('div');
+  element.className = 'campus-empty';
+  element.textContent = message;
+  return element;
+}
+
+function campusItem(title, details) {
+  const row = document.createElement('article');
+  row.className = 'campus-item';
+  const heading = document.createElement('strong');
+  heading.textContent = title || '未命名课程';
+  row.append(heading);
+  const meta = document.createElement('div');
+  meta.className = 'campus-item-meta';
+  meta.textContent = details.filter(Boolean).join(' · ');
+  if (meta.textContent) row.append(meta);
+  return row;
+}
+
+function renderCampus() {
+  const status = $('#campus-state');
+  const profile = $('#campus-profile');
+  const schedule = $('#campus-schedule');
+  const exams = $('#campus-exams');
+  const grades = $('#campus-grades');
+  if (!status || !profile || !schedule || !exams || !grades) return;
+  schedule.replaceChildren();
+  exams.replaceChildren();
+  grades.replaceChildren();
+  profile.replaceChildren();
+  if (campusLoading) {
+    status.textContent = '正在读取当前页面…';
+    return;
+  }
+  if (!campusData) {
+    status.textContent = '请打开教务系统或一网通办后读取。';
+    profile.hidden = true;
+    $('#campus-schedule-count').textContent = '';
+    $('#campus-exam-count').textContent = '';
+    $('#campus-grade-count').textContent = '';
+    schedule.append(campusEmpty('暂无课表数据'));
+    exams.append(campusEmpty('暂无考试数据'));
+    grades.append(campusEmpty('暂无成绩数据'));
+    return;
+  }
+  const errors = campusData.errors || [];
+  status.textContent = `${campusData.site === 'jwxt' ? '教务系统' : '一网通办'}${campusData.term ? ` · ${campusData.term}` : ''}${errors.length ? ` · 未读取：${errors.join('、')}` : ''}`;
+  const user = campusData.user || {};
+  const profileParts = [user.name, user.studentId, user.department].filter(Boolean);
+  if (profileParts.length) {
+    const label = document.createElement('span');
+    label.textContent = '当前用户';
+    const value = document.createElement('strong');
+    value.textContent = profileParts.join(' · ');
+    profile.append(label, value);
+    profile.hidden = false;
+  } else profile.hidden = true;
+  const scheduleRows = campusData.schedule || [];
+  const examRows = campusData.exams || [];
+  const gradeRows = campusData.grades || [];
+  $('#campus-schedule-count').textContent = `${scheduleRows.length} 门`;
+  $('#campus-exam-count').textContent = `${examRows.length} 场`;
+  $('#campus-grade-count').textContent = `${gradeRows.length} 门`;
+  for (const row of scheduleRows) schedule.append(campusItem(row.course, [row.weekday && `周${row.weekday}`, row.section, row.classroom, row.teacher, row.weeks]));
+  for (const row of examRows) exams.append(campusItem(row.course, [row.date, row.time, row.classroom, row.seat && `座位 ${row.seat}`]));
+  for (const row of gradeRows) grades.append(campusItem(row.course, [row.score && `成绩 ${row.score}`, row.credit && `学分 ${row.credit}`, row.gpa && `绩点 ${row.gpa}`, row.term]));
+  if (!scheduleRows.length) schedule.append(campusEmpty('暂无课表数据'));
+  if (!examRows.length) exams.append(campusEmpty('暂无考试数据'));
+  if (!gradeRows.length) grades.append(campusEmpty('暂无成绩数据'));
 }
 
 function resourcesFor(course) {
@@ -379,6 +525,22 @@ function renderCatalog() {
   $('#catalog').replaceChildren();
   $('#catalog-empty').hidden = courses.length > 0;
   const fileCount = [...resourceIndex.values()].length;
+  const replayCount = [...resourceIndex.values()].filter(item => item.kind === 'replay').length;
+  const activeTaskCount = state.tasks.filter(task => ['queued', 'resolving', 'downloading', 'paused'].includes(task.state)).length;
+  const summary = $('#catalog-summary');
+  if (summary) {
+    summary.replaceChildren();
+    for (const [label, value] of [['课程', courses.length], ['资源', fileCount], ['回放', replayCount], ['活动任务', activeTaskCount]]) {
+      const card = document.createElement('div');
+      card.className = 'summary-card';
+      const number = document.createElement('strong');
+      number.textContent = String(value);
+      const caption = document.createElement('span');
+      caption.textContent = label;
+      card.append(number, caption);
+      summary.append(card);
+    }
+  }
   $('#catalog-meta').textContent = scanState.state === 'running'
     ? `正在扫描 ${scanState.done || 0}/${scanState.total || '…'} ${scanState.courseName || ''}`
     : catalog.updatedAt
@@ -639,13 +801,22 @@ function taskAction(task, label, action) {
 function renderTasks() {
   const tasks = state.tasks || [];
   $('#tasks').replaceChildren();
-  $('#tasks-empty').hidden = tasks.length > 0;
-  const active = tasks.filter(task => ['queued', 'resolving', 'downloading'].includes(task.state)).length;
+  const query = String($('#task-search')?.value || '').trim().toLowerCase();
+  const stateFilter = $('#task-state-filter')?.value || 'all';
+  const filteredTasks = tasks.filter(task => {
+    if (stateFilter === 'active' && !['queued', 'resolving', 'downloading', 'paused'].includes(task.state)) return false;
+    if (stateFilter !== 'all' && stateFilter !== 'active' && task.state !== stateFilter) return false;
+    if (!query) return true;
+    return `${task.activityTitle || ''} ${task.uploadName || ''} ${task.courseName || ''} ${task.source || ''}`.toLowerCase().includes(query);
+  });
+  $('#tasks-empty').hidden = filteredTasks.length > 0;
+  $('#tasks-empty').querySelector('p').textContent = tasks.length && !filteredTasks.length ? '没有匹配的下载任务。' : '还没有下载任务。';
+  const active = tasks.filter(task => ['queued', 'resolving', 'downloading', 'paused'].includes(task.state)).length;
   const completed = tasks.filter(task => task.state === 'completed').length;
   const downloaded = tasks.filter(task => task.state === 'completed').reduce((sum, task) => sum + (Number(task.bytesReceived) || 0), 0);
   $('#nav-task-count').textContent = active ? `(${active})` : '';
   $('#task-summary').textContent = `${active} 个进行中 · ${completed} 个已完成 · 已下载 ${formatBytes(downloaded)}`;
-  for (const task of tasks) {
+  for (const task of filteredTasks) {
     const row = document.createElement('div');
     row.className = 'task-row';
     const file = document.createElement('div');
@@ -719,6 +890,7 @@ async function loadState() {
   renderCourseFiles();
   renderTasks();
   renderSettings();
+  renderPortal();
   renderZyxf();
   updateSelectionButtons();
 }
@@ -739,6 +911,48 @@ async function queueSelected() {
     await loadState();
   } catch (error) {
     showNotice(error.message);
+  }
+}
+
+async function exportCatalog() {
+  const courses = state.catalog.courses || [];
+  if (!courses.length) return showNotice('请先扫描课程');
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    courses,
+    todos: state.catalog.todos || []
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  try {
+    await chrome.downloads.download({
+      url,
+      filename: `${safeFilePart(state.settings.root || 'XJTU')}/课程清单_${new Date().toISOString().slice(0, 10)}.json`,
+      saveAs: true
+    });
+    showNotice('清单已导出', 'success');
+  } catch (error) {
+    showNotice(error.message || '导出失败');
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+}
+
+async function loadCampus() {
+  campusLoading = true;
+  renderCampus();
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) throw new Error('请先打开教务系统或一网通办');
+    const response = await call({ type: 'GET_CAMPUS_OVERVIEW', tabId: tab.id });
+    campusData = response.data;
+    showNotice('校园数据已更新', 'success');
+  } catch (error) {
+    campusData = null;
+    showNotice(error.message);
+  } finally {
+    campusLoading = false;
+    renderCampus();
   }
 }
 
@@ -763,6 +977,11 @@ $('#collapse-resources').addEventListener('click', () => {
   }
 });
 $('#resource-search').addEventListener('input', renderCatalog);
+$('#export-catalog').addEventListener('click', exportCatalog);
+$('#portal-search').addEventListener('input', renderPortal);
+$('#task-search').addEventListener('input', renderTasks);
+$('#task-state-filter').addEventListener('change', renderTasks);
+$('#campus-refresh').addEventListener('click', loadCampus);
 $('#zyxf-search-button').addEventListener('click', runZyxfSearch);
 $('#zyxf-search').addEventListener('keydown', event => {
   if (event.key === 'Enter') runZyxfSearch();
@@ -828,5 +1047,6 @@ const initialParams = new URLSearchParams(location.search);
 const initialView = initialParams.get('view');
 const initialDisplay = initialParams.get('display');
 if (['activities', 'sources', 'calendar'].includes(initialDisplay)) resourceView = initialDisplay;
-switchView(['resources', 'courses', 'zyxf', 'tasks', 'settings'].includes(initialView) ? initialView : 'resources');
+switchView(['resources', 'courses', 'campus', 'portal', 'zyxf', 'tasks', 'settings'].includes(initialView) ? initialView : 'resources');
+renderCampus();
 loadState().catch(error => showNotice(error.message));

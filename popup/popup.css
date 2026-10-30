@@ -47,8 +47,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 .section { padding: 16px; border-bottom: 1px solid var(--line); background: var(--paper); }
 .section + .section { border-top: 8px solid var(--ground); }
-.section-label { margin-bottom: 8px; color: var(--blue); font-size: 12px; font-weight: 700; }
-h1 { margin: 0 0 7px; font-size: 16px; line-height: 1.45; }
+.section-label { margin-bottom: 8px; color: var(--blue); font-size: 13px; font-weight: 700; letter-spacing: .02em; }
+h1 { margin: 0 0 7px; font-size: 17px; line-height: 1.45; }
 p { margin: 0 0 12px; line-height: 1.55; }
 .muted { color: var(--muted); }
 .notice { display: none; padding: 9px 16px; border-bottom: 1px solid var(--line); background: #fff; line-height: 1.45; }
@@ -89,9 +89,12 @@ p { margin: 0 0 12px; line-height: 1.55; }
 .file-row { padding: 11px 0; border-bottom: 1px solid var(--line); }
 .file-row-main { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .file-name { min-width: 0; overflow-wrap: anywhere; line-height: 1.45; }
-.file-meta { margin-top: 4px; color: var(--muted); font-size: 12px; }
+.file-meta { margin-top: 4px; color: var(--muted); font-size: 13px; }
 
-.app-footer { display: flex; justify-content: space-between; padding: 11px 16px; }
+.quick-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.quick-links .button { flex: 1 1 auto; }
+
+.app-footer { display: flex; justify-content: space-between; gap: 12px; padding: 12px 16px; }
 .text-button { padding: 2px 0; color: var(--blue); background: none; border: 0; border-bottom: 1px solid transparent; }
 .text-button:hover { border-bottom-color: currentColor; }
 

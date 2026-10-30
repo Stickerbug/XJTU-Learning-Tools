@@ -4,7 +4,7 @@
 
 - 中文名称：仙交学习工具
 - 英文名称：XJTU Learning Tools
-- 当前版本：0.3.0
+- 当前版本：0.4.0
 - 目标 GitHub 仓库：https://github.com/Stickerbug/XJTU-Learning-Tools
 - 目标工作目录（由后续对话执行）：`D:\XJTU Learning Tools`
 - 项目形态：Chrome / Edge Manifest V3 浏览器扩展，无业务后端。
@@ -57,7 +57,7 @@ git -C "D:\XJTU Learning Tools" pull "C:\Users\PC\Documents\kimi\tasks\2026-10-2
 python scripts/package.py
 ```
 
-安装包输出到项目父目录，文件名为 `xjtu-learning-tools-0.3.0.zip`。
+安装包输出到项目父目录，文件名为 `xjtu-learning-tools-0.4.0.zip`。
 
 ## 4. 当前架构
 
@@ -96,7 +96,7 @@ python scripts/package.py
 - 队列、暂停、继续、取消、失败重试和任务记录。
 - 西交蓝红、少圆角、无装饰性动画的界面。
 
-### 本次新增（0.3.0）
+### 本次新增（0.4.0）
 
 - 全项目重命名为“仙交学习工具 / XJTU Learning Tools”。
 - `lecture_live` 回放：
@@ -117,6 +117,10 @@ python scripts/package.py
 - 下载前首段预检，避免 HTML 被保存成课程附件。
 - 下载任务摘要：进行中、已完成和累计下载大小。
 - 设置页官方服务与专用工具链接。
+- 校园门户：管理页集中展示常用教学、服务、信息和工具站点，支持分类筛选与关键词搜索。
+- 当前页快捷识别：弹窗根据当前 LMS、教务、一网通办、学辅、新闻网和网络中心页面提供快捷入口。
+- 管理页与弹窗的字号、间距、导航换行和窄屏布局优化。
+- 课程资源总览统计、课程清单 JSON 导出和下载任务搜索/状态筛选。
 - `/api/my-courses` GET 失败时 POST 回退。
 - 作业截止时间优先使用列表中的 `deadline`。
 
@@ -133,7 +137,7 @@ python scripts/package.py
 
 界面渲染曾出现一次临时 Edge 超时，单独复测通过；未发现页面脚本错误。
 
-**尚未做真实账号的 0.3.0 全量扫描与下载。** 后续对话不要把这些测试描述为真实端到端验证。
+**尚未做真实账号的 0.4.0 全量扫描与下载。** 后续对话不要把这些测试描述为真实端到端验证。
 
 ## 7. 后续真实验证顺序
 

@@ -2,7 +2,7 @@ from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 root = Path(__file__).resolve().parents[1]
-output = root.parent / "xjtu-learning-tools-0.3.0.zip"
+output = root.parent / "xjtu-learning-tools-0.4.0.zip"
 entries = [root / "manifest.json", root / "background.js"]
 for directory in ("assets", "content", "popup", "manager", "shared"):
     entries.extend(path for path in (root / directory).rglob("*") if path.is_file())

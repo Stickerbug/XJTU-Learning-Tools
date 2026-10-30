@@ -15,6 +15,8 @@
     <nav aria-label="主要功能">
       <button class="nav-button active" data-view="resources" type="button">批量下载</button>
       <button class="nav-button" data-view="courses" type="button">课程</button>
+      <button class="nav-button" data-view="campus" type="button">校园数据</button>
+      <button class="nav-button" data-view="portal" type="button">校园门户</button>
       <button class="nav-button" data-view="zyxf" type="button">学辅资料</button>
       <button class="nav-button" data-view="tasks" type="button">下载任务 <span id="nav-task-count"></span></button>
       <button class="nav-button" data-view="settings" type="button">设置</button>
@@ -39,9 +41,11 @@
             </select>
           </label>
           <button id="scan-courses" class="button secondary" type="button">重新扫描</button>
+          <button id="export-catalog" class="button secondary" type="button">导出清单</button>
           <button id="download-selected" class="button primary queue-selected" type="button">下载所选文件</button>
         </div>
       </div>
+      <div id="catalog-summary" class="catalog-summary" aria-label="课程清单统计"></div>
       <div class="search-bar">
         <input id="resource-search" type="search" placeholder="搜索课程、活动或文件名" aria-label="搜索课程文件">
         <div class="resource-tools">
@@ -92,11 +96,56 @@
       </div>
     </section>
 
+    <section id="view-campus" class="view" hidden>
+      <div class="toolbar">
+        <div>
+          <h1>校园数据</h1>
+          <p class="muted">读取当前已登录教务页面的课表、考试和成绩摘要</p>
+        </div>
+        <button id="campus-refresh" class="button primary" type="button">读取当前页面</button>
+      </div>
+      <div id="campus-state" class="campus-state">请打开教务系统或一网通办后读取。</div>
+      <div id="campus-profile" class="campus-profile" hidden></div>
+      <div class="campus-grid">
+        <section class="campus-panel">
+          <div class="campus-panel-head"><h2>课表</h2><span id="campus-schedule-count" class="muted"></span></div>
+          <div id="campus-schedule" class="campus-list"></div>
+        </section>
+        <section class="campus-panel">
+          <div class="campus-panel-head"><h2>考试安排</h2><span id="campus-exam-count" class="muted"></span></div>
+          <div id="campus-exams" class="campus-list"></div>
+        </section>
+        <section class="campus-panel campus-panel-wide">
+          <div class="campus-panel-head"><h2>成绩</h2><span id="campus-grade-count" class="muted"></span></div>
+          <div id="campus-grades" class="campus-list"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="view-portal" class="view" hidden>
+      <div class="toolbar">
+        <div>
+          <h1>校园门户</h1>
+          <p class="muted">常用校园服务、教学平台和公开信息入口</p>
+        </div>
+        <a class="button secondary" href="https://xjtu-links.com/" target="_blank" rel="noreferrer">完整站点目录</a>
+      </div>
+      <div class="search-bar">
+        <input id="portal-search" type="search" placeholder="搜索站点名称、用途或地址" aria-label="搜索校园站点">
+        <div id="portal-filters" class="resource-tools" role="group" aria-label="站点分类"></div>
+      </div>
+      <div id="portal-list" class="link-list vertical"></div>
+      <div id="portal-empty" class="empty-state" hidden>
+        <h2>没有匹配的站点</h2>
+        <p>换个关键词试试。</p>
+      </div>
+    </section>
+
     <section id="view-zyxf" class="view" hidden>
       <div class="toolbar">
         <div>
           <h1>仲英学辅资料库</h1>
-          <p class="muted">只读检索与下载，不上传资料，不保存临时签名地址。</p>
+          <p class="muted">搜索课程资料并下载</p>
         </div>
         <div class="toolbar-actions">
           <button id="zyxf-browse-root" class="button secondary" type="button">浏览根目录</button>
@@ -116,9 +165,19 @@
       <div class="toolbar">
         <div>
           <h1>下载任务</h1>
-          <p id="task-summary" class="muted">临时地址与令牌不写入任务记录。</p>
+          <p id="task-summary" class="muted">查看进度、暂停任务或重试失败下载</p>
         </div>
         <button id="clear-finished" class="button secondary" type="button">清除已结束任务</button>
+      </div>
+      <div class="task-filters">
+        <input id="task-search" type="search" placeholder="搜索任务、课程或来源" aria-label="搜索下载任务">
+        <select id="task-state-filter" aria-label="按状态筛选任务">
+          <option value="all">全部状态</option>
+          <option value="active">进行中</option>
+          <option value="completed">已完成</option>
+          <option value="failed">失败</option>
+          <option value="canceled">已取消</option>
+        </select>
       </div>
       <div class="task-head" aria-hidden="true">
         <span>文件</span><span>状态</span><span>进度</span><span>操作</span>
