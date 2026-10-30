@@ -135,6 +135,9 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 #portal-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 20px; margin-top: 0; }
 #portal-list a { display: block; min-height: 72px; padding: 14px 16px; color: var(--ink); background: #fff; border: 1px solid var(--line); text-decoration: none; line-height: 1.5; }
 #portal-list a:hover { color: var(--blue); background: #f7fbfe; border-color: var(--blue); }
+.portal-site-card { display: block; min-height: 74px; }
+.portal-site-name { display: block; font-size: 14px; line-height: 1.4; }
+.portal-site-description { display: -webkit-box; margin-top: 5px; color: var(--muted); font-size: 13px; line-height: 1.4; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 #portal-filters { margin-top: 12px; }
 #portal-filters .view-switch { flex-wrap: wrap; }
 .session-status { padding: 10px 20px; color: var(--muted); border-bottom: 1px solid var(--line); background: #fafafa; }

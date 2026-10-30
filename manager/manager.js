@@ -133,11 +133,18 @@ function renderPortal() {
   list.replaceChildren();
   for (const site of sites) {
     const link = document.createElement('a');
+    link.className = 'portal-site-card';
     link.href = site.url;
     link.target = '_blank';
     link.rel = 'noreferrer';
     link.title = site.url;
-    link.textContent = `${site.name} · ${site.description}`;
+    const name = document.createElement('strong');
+    name.className = 'portal-site-name';
+    name.textContent = site.name;
+    const description = document.createElement('span');
+    description.className = 'portal-site-description';
+    description.textContent = site.description;
+    link.append(name, description);
     list.append(link);
   }
   $('#portal-empty').hidden = sites.length > 0;
