@@ -763,6 +763,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return { ok: true, ...(await sendToCard(message.tabId)) };
       case 'GET_SCHOOL_INBOX':
         return { ok: true, data: await sendToSchoolInbox(message.tabId) };
+      case 'GET_PERSONAL_DIGEST':
+        return { ok: true, ...(await sendToCampus(message.tabId, 'CAMPUS_GET_PERSONAL_DIGEST')) };
       case 'GET_SESSION_STATUS':
         return { ok: true, ...(await sessionStatus(message.tabId)) };
       case 'QUEUE_REPLAY':

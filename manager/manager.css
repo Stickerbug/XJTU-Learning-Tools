@@ -273,6 +273,11 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .inbox-item a { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--blue); text-decoration: none; }
 .inbox-item.is-overdue { background: #fff8f0; }
 .inbox-item.is-overdue strong { color: var(--red); }
+.personal-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.personal-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); gap: 14px; padding: 18px 20px; background: #f8f8f8; }
+.personal-network { padding: 8px 16px; }
+.personal-network-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid #ededed; }
+.personal-network-row span { color: var(--muted); }
 .classroom-results { padding: 18px 20px; background: #f8f8f8; }
 .classroom-building-group { margin-bottom: 14px; background: #fff; border: 1px solid var(--line); }
 .classroom-building-group:last-child { margin-bottom: 0; }
@@ -354,6 +359,8 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
   .grade-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .classroom-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .card-summary, .inbox-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .personal-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .personal-grid { grid-template-columns: 1fr; padding: 14px; }
   .inbox-grid { grid-template-columns: 1fr; padding: 14px; }
   .attendance-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .attendance-row { grid-template-columns: 96px minmax(130px, 1fr) 100px minmax(120px, 1fr) 80px; gap: 8px; padding-inline: 14px; }
@@ -373,6 +380,7 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
   #portal-list { grid-template-columns: 1fr; }
   .grade-summary { grid-template-columns: 1fr; }
   .card-summary, .inbox-summary { grid-template-columns: 1fr; }
+  .personal-summary { grid-template-columns: 1fr; }
   .attendance-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .library-filters { flex-direction: column; }
   .library-filters label, .library-filters input, .library-filters select { width: 100%; }

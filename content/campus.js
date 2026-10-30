@@ -288,6 +288,42 @@
     return { menus: normalizeMenu(payloads), sources: payloads.length };
   }
 
+  function listFrom(value) {
+    if (Array.isArray(value)) return value;
+    if (Array.isArray(value?.list)) return value.list;
+    if (Array.isArray(value?.rows)) return value.rows;
+    if (Array.isArray(value?.records)) return value.records;
+    if (Array.isArray(value?.items)) return value.items;
+    return [];
+  }
+
+  async function personalDigest() {
+    if (location.hostname !== 'ywtb.xjtu.edu.cn') throw new Error('请打开一网通办页面');
+    const headers = sessionToken() ? { 'X-Id-Token': sessionToken() } : {};
+    const results = await Promise.allSettled([
+      api('/portal-api/v2/personalData/getMyBooks', { headers }),
+      api('/portal-api/v2/personalData/getMailbox', { headers }),
+      api('/portal-api/v1/intranet/getDetail', { headers })
+    ]);
+    const value = index => results[index].status === 'fulfilled' ? results[index].value : null;
+    const bookData = value(0)?.data ?? value(0) ?? {};
+    const mailboxData = value(1)?.data ?? value(1) ?? {};
+    const intranetData = value(2)?.data ?? value(2) ?? {};
+    const books = listFrom(bookData).map(item => ({
+      title: pick(item, ['bookName', 'title', 'name', 'book_title']),
+      author: pick(item, ['author', 'authorName']),
+      dueDate: pick(item, ['returnDate', 'dueDate', 'endDate', 'shouldReturnDate']),
+      status: pick(item, ['status', 'state'])
+    })).filter(item => item.title);
+    return {
+      books,
+      unreadMail: Number(mailboxData.mailboxUnreadSum ?? mailboxData.unreadCount ?? mailboxData.count ?? 0) || 0,
+      network: { enableVpn: Boolean(intranetData.enableVpn ?? intranetData.enableVPN), autoConnectAtLogin: Boolean(intranetData.autoConnectAtLogin), autoConnectAtIntranet: Boolean(intranetData.autoConnectAtIntranet) },
+      errors: results.map(item => item.status === 'rejected' ? textValue(item.reason?.message || '部分数据读取失败') : '').filter(Boolean),
+      fetchedAt: new Date().toISOString()
+    };
+  }
+
   async function loginStatus() {
     try {
       if (location.hostname === 'jwxt.xjtu.edu.cn') {
@@ -309,12 +345,13 @@
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (!['CAMPUS_GET_OVERVIEW', 'CAMPUS_GET_PORTAL', 'CAMPUS_GET_STATUS', 'CAMPUS_GET_CLASSROOM_CODES', 'CAMPUS_GET_CLASSROOMS', 'CAMPUS_GET_TOKEN'].includes(message?.type)) return false;
+    if (!['CAMPUS_GET_OVERVIEW', 'CAMPUS_GET_PORTAL', 'CAMPUS_GET_STATUS', 'CAMPUS_GET_CLASSROOM_CODES', 'CAMPUS_GET_CLASSROOMS', 'CAMPUS_GET_TOKEN', 'CAMPUS_GET_PERSONAL_DIGEST'].includes(message?.type)) return false;
     if (message.type === 'CAMPUS_GET_TOKEN') {
       sendResponse({ ok: true, token: sessionToken() });
       return false;
     }
     const request = message.type === 'CAMPUS_GET_PORTAL' ? portalMenu()
+      : message.type === 'CAMPUS_GET_PERSONAL_DIGEST' ? personalDigest()
       : message.type === 'CAMPUS_GET_STATUS' ? loginStatus()
         : message.type === 'CAMPUS_GET_CLASSROOM_CODES' ? classroomCodes()
         : message.type === 'CAMPUS_GET_CLASSROOMS' ? classrooms(message.query || {}) : overview();

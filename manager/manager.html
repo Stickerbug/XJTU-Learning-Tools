@@ -20,6 +20,7 @@
       <button class="nav-button" data-view="library" type="button">图书馆座位</button>
       <button class="nav-button" data-view="card" type="button">校园卡</button>
       <button class="nav-button" data-view="inbox" type="button">事务消息</button>
+      <button class="nav-button" data-view="personal" type="button">个人摘要</button>
       <button class="nav-button" data-view="classrooms" type="button">空教室</button>
       <button class="nav-button" data-view="portal" type="button">校园门户</button>
       <button class="nav-button" data-view="zyxf" type="button">学辅资料</button>
@@ -237,6 +238,13 @@
         <section class="campus-panel"><div class="campus-panel-head"><h2>校园消息</h2></div><div id="inbox-messages" class="inbox-list"></div></section>
         <section class="campus-panel"><div class="campus-panel-head"><h2>事务待办</h2></div><div id="inbox-todos" class="inbox-list"></div></section>
       </div>
+    </section>
+
+    <section id="view-personal" class="view" hidden>
+      <div class="toolbar"><div><h1>个人摘要</h1><p class="muted">借阅到期、未读邮箱和校园网络要求</p></div><div class="toolbar-actions"><a class="button secondary" href="https://ywtb.xjtu.edu.cn/" target="_blank" rel="noreferrer">打开一网通办</a><button id="personal-refresh" class="button primary" type="button">读取个人摘要</button></div></div>
+      <div id="personal-state" class="campus-state">请打开并登录一网通办后读取。</div>
+      <div id="personal-summary" class="classroom-summary personal-summary" hidden></div>
+      <div class="personal-grid"><section class="campus-panel"><div class="campus-panel-head"><h2>图书借阅</h2></div><div id="personal-books" class="inbox-list"></div></section><section class="campus-panel"><div class="campus-panel-head"><h2>网络要求</h2></div><div id="personal-network" class="personal-network"></div></section></div>
     </section>
 
     <section id="view-attendance" class="view" hidden>

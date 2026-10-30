@@ -72,6 +72,8 @@ let cardData = null;
 let cardLoading = false;
 let inboxData = null;
 let inboxLoading = false;
+let personalData = null;
+let personalLoading = false;
 let gradeTermFilter = 'all';
 let courseSearchQuery = '';
 let scheduleView = 'list';
@@ -865,6 +867,26 @@ async function loadInbox() {
   } catch (error) { inboxData = null; showNotice(error.message); }
   finally { inboxLoading = false; renderInbox(); }
 }
+
+function personalTab() { return inboxTab(); }
+function renderPersonal() {
+  const stateElement = $('#personal-state'), summary = $('#personal-summary'), books = $('#personal-books'), network = $('#personal-network');
+  if (!stateElement || !summary || !books || !network) return;
+  summary.replaceChildren(); books.replaceChildren(); network.replaceChildren();
+  if (personalLoading) { stateElement.textContent = '正在读取个人摘要…'; return; }
+  if (!personalData) { stateElement.textContent = '请打开并登录一网通办后读取。'; books.append(campusEmpty('暂无借阅数据')); return; }
+  stateElement.textContent = `${personalData.errors?.length ? `部分数据未读取：${personalData.errors.join('、')} · ` : ''}更新于 ${new Date(personalData.fetchedAt || Date.now()).toLocaleTimeString('zh-CN')}`;
+  for (const [label, value, note] of [['借阅中', personalData.books?.length || 0, '当前借阅'], ['未读邮箱', personalData.unreadMail || 0, '邮箱摘要'], ['VPN要求', personalData.network?.enableVpn ? '可能需要' : '未标记', '服务网络要求']]) {
+    const item = document.createElement('div'); item.className = 'summary-card';
+    const n = document.createElement('strong'); n.textContent = String(value); const t = document.createElement('span'); t.textContent = label; const h = document.createElement('small'); h.textContent = note; item.append(n, t, h); summary.append(item);
+  }
+  summary.hidden = false;
+  if (!(personalData.books || []).length) books.append(campusEmpty('当前没有借阅记录'));
+  for (const book of personalData.books || []) { const row = document.createElement('article'); row.className = 'inbox-item'; const title = document.createElement('strong'); title.textContent = book.title; const meta = document.createElement('span'); meta.textContent = [book.author, book.dueDate ? `应还 ${book.dueDate}` : '', book.status].filter(Boolean).join(' · '); row.append(title, meta); books.append(row); }
+  const networkRows = [['VPN', personalData.network?.enableVpn ? '服务可能需要 VPN' : '未标记需要 VPN'], ['登录自动连接', personalData.network?.autoConnectAtLogin ? '已配置' : '未配置'], ['校内网自动连接', personalData.network?.autoConnectAtIntranet ? '已配置' : '未配置']];
+  for (const [label, text] of networkRows) { const row = document.createElement('div'); row.className = 'personal-network-row'; row.append(Object.assign(document.createElement('strong'), { textContent: label }), Object.assign(document.createElement('span'), { textContent: text })); network.append(row); }
+}
+async function loadPersonal() { personalLoading = true; renderPersonal(); try { const tab = await personalTab(); if (!tab?.id) throw new Error('请先打开并登录一网通办'); personalData = (await call({ type: 'GET_PERSONAL_DIGEST', tabId: tab.id })).data; showNotice('个人摘要已更新', 'success'); } catch (error) { personalData = null; showNotice(error.message); } finally { personalLoading = false; renderPersonal(); } }
 
 function resourcesFor(course) {
   if (Array.isArray(course.resources)) return course.resources;
@@ -2041,6 +2063,7 @@ $('#library-refresh').addEventListener('click', loadLibrary);
 $('#library-seat-search').addEventListener('input', renderLibrary);
 $('#card-refresh').addEventListener('click', loadCard);
 $('#inbox-refresh').addEventListener('click', loadInbox);
+$('#personal-refresh').addEventListener('click', loadPersonal);
 for (const button of document.querySelectorAll('[data-today-action]')) button.addEventListener('click', async () => {
   const action = button.dataset.todayAction;
   if (action === 'classrooms') {
@@ -2150,12 +2173,13 @@ const initialParams = new URLSearchParams(location.search);
 const initialView = initialParams.get('view');
 const initialDisplay = initialParams.get('display');
 if (['activities', 'sources', 'calendar'].includes(initialDisplay)) resourceView = initialDisplay;
-switchView(['resources', 'courses', 'campus', 'attendance', 'library', 'card', 'inbox', 'classrooms', 'portal', 'zyxf', 'tasks', 'settings'].includes(initialView) ? initialView : 'resources');
+switchView(['resources', 'courses', 'campus', 'attendance', 'library', 'card', 'inbox', 'personal', 'classrooms', 'portal', 'zyxf', 'tasks', 'settings'].includes(initialView) ? initialView : 'resources');
 renderCampus();
 renderAttendance();
 renderLibrary();
 renderCard();
 renderInbox();
+renderPersonal();
 renderClassrooms();
 if (initialView === 'classrooms') loadClassroomCodes();
 loadState().catch(error => showNotice(error.message));
