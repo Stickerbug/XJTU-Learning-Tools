@@ -156,7 +156,12 @@
     }
   }
 
+  let classroomCodeCache = null;
+
   async function classroomCodes() {
+    if (classroomCodeCache && Date.now() - classroomCodeCache.updatedAt < 7 * 24 * 60 * 60 * 1000) {
+      return classroomCodeCache;
+    }
     const [campusPayload, buildingPayload] = await Promise.all([
       api('/jwapp/code/83a986fc-e677-400e-99a4-c7bb39c2ca35.do', { method: 'POST' }),
       api('/jwapp/code/551fbcc3-cf07-4566-af1e-fc7ce272ddc1.do', { method: 'POST' })
@@ -167,7 +172,8 @@
     const buildings = codeRows(buildingPayload).map(row => ({
       code: pick(row, ['id', 'code', 'value']), name: pick(row, ['name', 'text', 'label'])
     })).filter(item => item.code && item.name);
-    return { campuses, buildings };
+    classroomCodeCache = { campuses, buildings, updatedAt: Date.now() };
+    return classroomCodeCache;
   }
 
   async function classroomQuery(campusCode, buildingCode, date, startSection, endSection) {
