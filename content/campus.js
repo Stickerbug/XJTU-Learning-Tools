@@ -24,7 +24,12 @@
   };
 
   async function api(path, options = {}) {
-    const response = await fetch(path, { credentials: 'include', ...options });
+    const headers = {
+      Accept: 'application/json, text/javascript, */*; q=0.01',
+      'X-Requested-With': 'XMLHttpRequest',
+      ...(options.headers || {})
+    };
+    const response = await fetch(path, { credentials: 'include', ...options, headers });
     if (!response.ok) {
       if ([401, 403].includes(response.status)) throw new Error('当前页面登录状态已失效');
       throw new Error(`校园服务请求失败（${response.status}）`);
@@ -76,6 +81,7 @@
   }
 
   async function jwxtOverview() {
+    await ensureStudentRole();
     const userRequest = api('/jwapp/sys/homeapp/api/home/currentUser.do');
     const termRequest = api('/jwapp/sys/wdkb/modules/jshkcb/dqxnxq.do', {
       method: 'POST',
