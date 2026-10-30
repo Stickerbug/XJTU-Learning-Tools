@@ -4,7 +4,7 @@
 
 - 中文名称：仙交学习工具
 - 英文名称：XJTU Learning Tools
-- 当前版本：0.4.0
+- 当前版本：0.4.1
 - 目标 GitHub 仓库：https://github.com/Stickerbug/XJTU-Learning-Tools
 - 目标工作目录（由后续对话执行）：`D:\XJTU Learning Tools`
 - 项目形态：Chrome / Edge Manifest V3 浏览器扩展，无业务后端。
@@ -57,7 +57,7 @@ git -C "D:\XJTU Learning Tools" pull "C:\Users\PC\Documents\kimi\tasks\2026-10-2
 python scripts/package.py
 ```
 
-安装包输出到项目父目录，文件名为 `xjtu-learning-tools-0.4.0.zip`。
+安装包输出到项目父目录，文件名为 `xjtu-learning-tools-0.4.1.zip`。
 
 ## 4. 当前架构
 
@@ -127,7 +127,7 @@ python scripts/package.py
 - `/api/my-courses` GET 失败时 POST 回退。
 - 作业截止时间优先使用列表中的 `deadline`。
 
-### 本轮校园数据增强（仍在 0.4.0 工作树中）
+### 本轮校园数据增强（0.4.1）
 
 - 管理页新增“今日中心”：显示下一节课、今日课程数量与课程名、最近考试倒计时和 LMS 待办摘要。
 - 课表支持列表/周视图切换、周导航和“导出本周 ICS”；周视图按星期与节次排列课程，ICS 使用当前选中周生成日历事件。
@@ -148,7 +148,7 @@ python scripts/package.py
 
 界面渲染曾出现一次临时 Edge 超时，单独复测通过；未发现页面脚本错误。
 
-**尚未做真实账号的 0.4.0 全量扫描与下载。** 后续对话不要把这些测试描述为真实端到端验证。
+**尚未做真实账号的 0.4.1 全量扫描与下载。** 后续对话不要把这些测试描述为真实端到端验证。
 
 ## 7. 后续真实验证顺序
 
