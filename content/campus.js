@@ -199,25 +199,35 @@
     const startSection = Math.max(1, Math.min(11, Number(request.startSection) || 1));
     const endSection = Math.max(startSection, Math.min(11, Number(request.endSection) || startSection));
     const chunks = [];
+    const errors = [];
     for (let index = 0; index < buildings.length; index += 5) {
       const batch = buildings.slice(index, index + 5);
-      const rows = await Promise.all(batch.map(building => classroomQuery(campus.code, building.code, date, startSection, endSection)
-        .catch(() => [])));
-      chunks.push(...rows.flat());
+      const results = await Promise.all(batch.map(building => classroomQuery(campus.code, building.code, date, startSection, endSection)
+        .then(rows => ({ rows }))
+        .catch(error => ({ rows: [], error }))));
+      results.forEach((result, offset) => {
+        if (result.error) errors.push(`${batch[offset].name}：${textValue(result.error.message || result.error)}`);
+        chunks.push(...result.rows);
+      });
     }
     const free = chunks.map(room => ({ ...room, status: 'free' }));
     const result = {
       date, campus: { code: campus.code, name: campus.name },
       building: selectedBuilding ? (buildings[0] || null) : null,
       startSection, endSection, rooms: free, total: free.length,
-      available: free.length, occupied: null, codes
+      available: free.length, occupied: null, queriedBuildings: buildings.length, errors, codes
     };
     if (String(request.status || 'free') === 'all') {
       const inventoryRows = [];
       for (let index = 0; index < buildings.length; index += 5) {
         const batch = buildings.slice(index, index + 5);
-        const rows = await Promise.all(batch.map(building => classroomQuery(campus.code, building.code, date, 0, 0).catch(() => [])));
-        inventoryRows.push(...rows.flat());
+        const results = await Promise.all(batch.map(building => classroomQuery(campus.code, building.code, date, 0, 0)
+          .then(rows => ({ rows }))
+          .catch(error => ({ rows: [], error }))));
+        results.forEach((result, offset) => {
+          if (result.error) errors.push(`${batch[offset].name}：全楼名录${textValue(result.error.message || result.error)}`);
+          inventoryRows.push(...result.rows);
+        });
       }
       const freeKeys = new Set(free.map(room => `${room.buildingName}|${room.name}`));
       const inventory = new Map();
