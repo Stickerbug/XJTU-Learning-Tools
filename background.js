@@ -97,6 +97,27 @@ function waitForTabComplete(tabId, timeout = 30000, expectedHost = '') {
   });
 }
 
+function waitForTabPath(tabId, pattern, timeout = 30000) {
+  return new Promise((resolve, reject) => {
+    let timer;
+    const finish = (error) => {
+      clearTimeout(timer);
+      chrome.tabs.onUpdated.removeListener(listener);
+      if (error) reject(error); else resolve();
+    };
+    const check = async () => {
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        if (pattern.test(new URL(tab.url || '').pathname)) finish();
+      } catch {}
+    };
+    const listener = (updatedTabId) => { if (updatedTabId === tabId) check(); };
+    timer = setTimeout(() => finish(new Error('后台页面登录跳转超时')), timeout);
+    chrome.tabs.onUpdated.addListener(listener);
+    check();
+  });
+}
+
 function parseTabUrl(tab) {
   const value = String(tab?.url || '').trim();
   try {
@@ -130,6 +151,9 @@ async function runInBackgroundTab(url, message) {
   try {
     const target = new URL(url);
     await waitForTabComplete(tab.id, 45000, target.hostname);
+    if (target.hostname === 'webvpn.xjtu.edu.cn' && target.pathname.startsWith('/http-8086/')) {
+      await waitForTabPath(tab.id, /^\/http-8086\/[0-9a-f]+\//i, 30000);
+    }
     await delay(1200);
     const current = await chrome.tabs.get(tab.id);
     const currentUrl = parseTabUrl(current);
@@ -151,7 +175,16 @@ async function sendToCampus(tabId, messageType = 'CAMPUS_GET_OVERVIEW') {
     return response;
   }
   let tab = await chrome.tabs.get(tabId);
-  let url = parseTabUrl(tab);
+  let url;
+  try {
+    url = parseTabUrl(tab);
+  } catch {
+    const fallbackUrl = ['CAMPUS_GET_PORTAL', 'CAMPUS_GET_PERSONAL_DIGEST'].includes(messageType) ? YWTB_HOME_URL :
+      messageType === 'CAMPUS_GET_CLASSROOMS' || messageType === 'CAMPUS_GET_CLASSROOM_CODES' ? CLASSROOM_PAGE_URL : JWXT_HOME_URL;
+    const response = await runInBackgroundTab(fallbackUrl, { type: messageType });
+    if (!response?.ok) throw new Error(response?.error || '后台读取校园页面失败');
+    return response;
+  }
   if (!['jwxt.xjtu.edu.cn', 'ywtb.xjtu.edu.cn'].includes(url.hostname)) {
     const fallbackUrl = ['CAMPUS_GET_PORTAL', 'CAMPUS_GET_PERSONAL_DIGEST'].includes(messageType) ? YWTB_HOME_URL :
       messageType === 'CAMPUS_GET_CLASSROOMS' || messageType === 'CAMPUS_GET_CLASSROOM_CODES' ? CLASSROOM_PAGE_URL : JWXT_HOME_URL;

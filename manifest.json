@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "仙交学习工具 XJTU Learning Tools",
   "short_name": "仙交学习",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "description": "整理思源学堂与仲英学辅课程资源，并快速查询课表、考试、成绩和空教室。",
   "permissions": ["downloads", "storage", "scripting"],
   "host_permissions": [

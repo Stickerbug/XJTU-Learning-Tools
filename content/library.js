@@ -77,7 +77,7 @@
     }
     const initialStats = space?.scount && typeof space.scount === 'object' ? space.scount : {};
     for (const code of Object.keys(initialStats)) if (!names[code]) names[code] = code;
-    const areas = await Promise.all(Object.entries(names).map(async ([code, name]) => {
+    const areas = await Promise.all(Object.entries(names).filter(([code, name]) => textValue(code) && textValue(name)).map(async ([code, name]) => {
       const payload = unwrap(await getJson(`/qseat?sp=${encodeURIComponent(code)}`));
       const stats = normalizeStats(payload?.scount?.[code]) || normalizeStats(initialStats[code]);
       const seats = Object.entries(payload?.seat || {}).map(([seatId, status]) => ({
