@@ -4,7 +4,7 @@
 
 - 中文名称：仙交学习工具
 - 英文名称：XJTU Learning Tools
-- 当前版本：0.4.3
+- 当前版本：0.4.4
 - 目标 GitHub 仓库：https://github.com/Stickerbug/XJTU-Learning-Tools
 - 目标工作目录（由后续对话执行）：`D:\XJTU Learning Tools`
 - 项目形态：Chrome / Edge Manifest V3 浏览器扩展，无业务后端。
@@ -154,6 +154,13 @@ python scripts/package.py
 
 - 图书馆座位页默认使用 WebVPN 入口，避免校外访问非标准 `8086` 端口返回 400。
 - 保留校内直连入口；在 WebVPN 座位页中也支持同源读取 `qspace` 和 `qseat`。
+
+### 页面快捷入口（0.4.4）
+
+- 考勤摘要提供本科和研究生考勤系统直达按钮。
+- 校园数据提供教务系统和一网通办直达按钮。
+- 空教室提供功能页直达按钮。
+- 当前考勤、教务、校园卡、事务消息、个人摘要和图书馆页面均可从管理页直接进入所需站点。
 
 ## 6. 验证状态
 

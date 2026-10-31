@@ -111,7 +111,11 @@
           <h1>校园数据</h1>
           <p class="muted">读取当前已登录教务页面的课表、考试和成绩摘要</p>
         </div>
-        <button id="campus-refresh" class="button primary" type="button">读取当前页面</button>
+        <div class="toolbar-actions">
+          <a class="button secondary" href="https://jwxt.xjtu.edu.cn/" target="_blank" rel="noreferrer">打开教务系统</a>
+          <a class="button secondary" href="https://ywtb.xjtu.edu.cn/" target="_blank" rel="noreferrer">打开一网通办</a>
+          <button id="campus-refresh" class="button primary" type="button">读取当前页面</button>
+        </div>
       </div>
       <section id="campus-today" class="today-center" aria-labelledby="campus-today-title">
         <div class="today-center-head">
@@ -254,7 +258,11 @@
           <h1>考勤摘要</h1>
           <p class="muted">读取当前登录考勤系统的课程考勤结果，快速定位缺勤和迟到记录</p>
         </div>
-        <button id="attendance-refresh" class="button primary" type="button">读取当前学期</button>
+        <div class="toolbar-actions">
+          <a class="button secondary" href="https://bk-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc" target="_blank" rel="noreferrer">打开本科考勤</a>
+          <a class="button secondary" href="https://yjs-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc" target="_blank" rel="noreferrer">打开研究生考勤</a>
+          <button id="attendance-refresh" class="button primary" type="button">读取当前学期</button>
+        </div>
       </div>
       <div id="attendance-state" class="campus-state">请打开本科或研究生考勤系统后读取。</div>
       <div id="attendance-summary" class="classroom-summary attendance-summary" aria-label="考勤统计"></div>
@@ -279,6 +287,7 @@
           <p class="muted">按日期和节次筛选全校可用教室</p>
         </div>
         <div class="toolbar-actions">
+          <a class="button secondary" href="https://jwxt.xjtu.edu.cn/jwapp/sys/kxjas/*default/index.do#/kxjscx" target="_blank" rel="noreferrer">打开空教室页</a>
           <button id="classroom-load-codes" class="button secondary" type="button">刷新校区和楼栋</button>
           <button id="classroom-query" class="button primary" type="button">查询空教室</button>
         </div>
