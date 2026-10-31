@@ -67,23 +67,43 @@ const ATTENDANCE_HOME_URL = 'https://bk-kq.xjtu.edu.cn/sa/auth/cas/login/student
 const LIBRARY_HOME_URL = 'https://webvpn.xjtu.edu.cn/http-8086/77726476706e69737468656265737421e2f00f902e322648741c9ce29d51367bae38/seat/';
 const CARD_HOME_URL = 'https://ncard.xjtu.edu.cn/';
 
-function waitForTabComplete(tabId, timeout = 30000) {
+function waitForTabComplete(tabId, timeout = 30000, expectedHost = '') {
   return new Promise((resolve, reject) => {
     let timer;
+    const isExpectedHost = value => {
+      if (!expectedHost) return true;
+      try {
+        const host = new URL(value || '').hostname;
+        return host === expectedHost || ['login.xjtu.edu.cn', 'org.xjtu.edu.cn', 'webvpn.xjtu.edu.cn'].includes(host);
+      } catch { return false; }
+    };
     const finish = (error) => {
       clearTimeout(timer);
       chrome.tabs.onUpdated.removeListener(listener);
       if (error) reject(error); else resolve();
     };
     const listener = (updatedTabId, changeInfo) => {
-      if (updatedTabId === tabId && changeInfo.status === 'complete') finish();
+      if (updatedTabId === tabId && changeInfo.status === 'complete') {
+        chrome.tabs.get(tabId).then(tab => {
+          if (isExpectedHost(tab.url)) finish();
+        }).catch(() => {});
+      }
     };
     timer = setTimeout(() => finish(new Error('教务系统页面加载超时')), timeout);
     chrome.tabs.onUpdated.addListener(listener);
     chrome.tabs.get(tabId).then(tab => {
-      if (tab.status === 'complete') finish();
+      if (tab.status === 'complete' && isExpectedHost(tab.url)) finish();
     }).catch(finish);
   });
+}
+
+function parseTabUrl(tab) {
+  const value = String(tab?.url || '').trim();
+  try {
+    return new URL(value);
+  } catch {
+    throw new Error('当前标签页地址不可用，请重新打开教务系统后重试');
+  }
 }
 
 function delay(milliseconds) {
@@ -108,10 +128,11 @@ async function sendTabMessage(tabId, message, attempts = 3) {
 async function runInBackgroundTab(url, message) {
   const tab = await chrome.tabs.create({ url, active: false });
   try {
-    await waitForTabComplete(tab.id, 45000);
+    const target = new URL(url);
+    await waitForTabComplete(tab.id, 45000, target.hostname);
     await delay(1200);
     const current = await chrome.tabs.get(tab.id);
-    const currentUrl = new URL(current.url || '');
+    const currentUrl = parseTabUrl(current);
     if (currentUrl.hostname === 'login.xjtu.edu.cn') {
       throw new Error('当前没有可复用的登录会话，请先完成一次统一认证');
     }
@@ -130,7 +151,7 @@ async function sendToCampus(tabId, messageType = 'CAMPUS_GET_OVERVIEW') {
     return response;
   }
   let tab = await chrome.tabs.get(tabId);
-  let url = new URL(tab.url || '');
+  let url = parseTabUrl(tab);
   if (!['jwxt.xjtu.edu.cn', 'ywtb.xjtu.edu.cn'].includes(url.hostname)) {
     throw new Error('请先打开教务系统或一网通办页面');
   }
@@ -138,10 +159,10 @@ async function sendToCampus(tabId, messageType = 'CAMPUS_GET_OVERVIEW') {
     if (url.hostname !== 'jwxt.xjtu.edu.cn') throw new Error('空教室查询需要打开教务系统');
     if (!url.pathname.includes('/jwapp/sys/kxjas/')) {
       await chrome.tabs.update(tabId, { url: CLASSROOM_PAGE_URL });
-      await waitForTabComplete(tabId);
+      await waitForTabComplete(tabId, 30000, 'jwxt.xjtu.edu.cn');
       await new Promise(resolve => setTimeout(resolve, 500));
       tab = await chrome.tabs.get(tabId);
-      url = new URL(tab.url || '');
+      url = parseTabUrl(tab);
     }
   }
   const response = await chrome.tabs.sendMessage(tabId, { type: messageType });
@@ -156,7 +177,7 @@ async function sendToAttendance(tabId) {
     return response;
   }
   const tab = await chrome.tabs.get(tabId);
-  const url = new URL(tab.url || '');
+  const url = parseTabUrl(tab);
   if (!['bk-kq.xjtu.edu.cn', 'yjs-kq.xjtu.edu.cn'].includes(url.hostname)) {
     throw new Error('请先打开本科或研究生考勤系统页面');
   }
@@ -172,7 +193,7 @@ async function sendToLibrary(tabId, floorCode) {
     return response;
   }
   const tab = await chrome.tabs.get(tabId);
-  const url = new URL(tab.url || '');
+  const url = parseTabUrl(tab);
   const direct = url.hostname === 'rg.lib.xjtu.edu.cn';
   const webvpn = url.hostname === 'webvpn.xjtu.edu.cn' && /^\/(?:http|https)(?:-\d+)?\/[0-9a-f]+\/.*(?:seat|qspace|qseat)/i.test(url.pathname);
   if (!direct && !webvpn) throw new Error('请先打开图书馆座位页面');
@@ -188,7 +209,7 @@ async function sendToCard(tabId) {
     return response;
   }
   const tab = await chrome.tabs.get(tabId);
-  const url = new URL(tab.url || '');
+  const url = parseTabUrl(tab);
   if (url.hostname !== 'ncard.xjtu.edu.cn') throw new Error('请先打开校园卡页面');
   const response = await chrome.tabs.sendMessage(tabId, { type: 'CARD_GET_OVERVIEW' });
   if (!response?.ok) throw new Error(response?.error || '无法读取校园卡，请刷新后重试');
@@ -207,7 +228,7 @@ async function fetchJson(url, headers = {}) {
 
 async function sendToSchoolInbox(tabId) {
   let tab = tabId ? await chrome.tabs.get(tabId) : null;
-  const url = tab ? new URL(tab.url || '') : null;
+  const url = tab ? parseTabUrl(tab) : null;
   if (url && url.hostname !== 'ywtb.xjtu.edu.cn') throw new Error('请先打开并登录一网通办');
   const tokenResponse = tabId
     ? await sendTabMessage(tabId, { type: 'CAMPUS_GET_TOKEN' })
@@ -253,7 +274,7 @@ async function sendToSchoolInbox(tabId) {
 
 async function sessionStatus(tabId) {
   const tab = await chrome.tabs.get(tabId);
-  const url = new URL(tab.url || '');
+  const url = parseTabUrl(tab);
   if (url.hostname === 'lms.xjtu.edu.cn') {
     const response = await chrome.tabs.sendMessage(tabId, { type: 'LMS_STATUS' });
     return { site: 'lms', loggedIn: Boolean(response?.ok && response.loggedIn) };
