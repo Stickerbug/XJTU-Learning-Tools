@@ -158,8 +158,7 @@ async function syncPortal() {
   if (button) { button.disabled = true; button.textContent = '同步中…'; }
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) throw new Error('请先打开一网通办');
-    const response = await call({ type: 'GET_CAMPUS_PORTAL', tabId: tab.id });
+    const response = await call({ type: 'GET_CAMPUS_PORTAL', tabId: tab?.id || 0 });
     livePortalSites = response.data?.menus || [];
     renderPortal();
     showNotice(`已同步 ${livePortalSites.length} 个门户入口`, 'success');
@@ -610,7 +609,7 @@ function renderCampus() {
     return;
   }
   if (!campusData) {
-    status.textContent = '请打开教务系统或一网通办后读取。';
+    status.textContent = '点击读取即可后台复用已登录会话；首次使用请先完成一次认证。';
     profile.hidden = true;
     $('#campus-schedule-count').textContent = '';
     $('#campus-exam-count').textContent = '';
@@ -691,7 +690,7 @@ function renderLibrary() {
     return;
   }
   if (!libraryData) {
-    stateElement.textContent = '请打开图书馆座位页后读取。';
+    stateElement.textContent = '点击读取即可后台复用已登录会话；首次使用请先完成一次图书馆认证。';
     results.append(campusEmpty('暂无图书馆座位数据'));
     return;
   }
@@ -750,8 +749,7 @@ async function loadLibrary() {
   renderLibrary();
   try {
     const tab = await libraryTab();
-    if (!tab?.id) throw new Error('请先打开图书馆座位页面');
-    const response = await call({ type: 'GET_LIBRARY_FLOOR', tabId: tab.id, floorCode: $('#library-floor').value });
+    const response = await call({ type: 'GET_LIBRARY_FLOOR', tabId: tab?.id || 0, floorCode: $('#library-floor').value });
     libraryData = response.data;
     showNotice('图书馆座位已更新', 'success');
   } catch (error) {
@@ -771,7 +769,7 @@ function renderCard() {
   summary.replaceChildren();
   transactions.replaceChildren();
   if (cardLoading) { stateElement.textContent = '正在读取校园卡…'; return; }
-  if (!cardData) { stateElement.textContent = '请打开校园卡移动端页面后读取。'; transactions.append(campusEmpty('暂无校园卡数据')); return; }
+  if (!cardData) { stateElement.textContent = '点击读取即可后台复用已登录会话；首次使用请先完成一次校园卡认证。'; transactions.append(campusEmpty('暂无校园卡数据')); return; }
   const card = cardData.card;
   stateElement.textContent = `${cardData.errors?.length ? `部分数据未读取：${cardData.errors.join('、')} · ` : ''}近 30 天流水 ${cardData.transactions?.length || 0} 条`;
   const status = card ? (card.frozen ? '已冻结' : card.lost ? '已挂失' : '正常') : '余额未读取';
@@ -817,8 +815,7 @@ async function loadCard() {
   cardLoading = true; renderCard();
   try {
     const tab = await cardTab();
-    if (!tab?.id) throw new Error('请先打开校园卡移动端页面');
-    const response = await call({ type: 'GET_CARD_OVERVIEW', tabId: tab.id });
+    const response = await call({ type: 'GET_CARD_OVERVIEW', tabId: tab?.id || 0 });
     cardData = response.data; showNotice('校园卡数据已更新', 'success');
   } catch (error) { cardData = null; showNotice(error.message); }
   finally { cardLoading = false; renderCard(); }
@@ -832,7 +829,7 @@ function renderInbox() {
   if (!stateElement || !summary || !messages || !todos) return;
   summary.replaceChildren(); messages.replaceChildren(); todos.replaceChildren();
   if (inboxLoading) { stateElement.textContent = '正在读取事务与消息…'; return; }
-  if (!inboxData) { stateElement.textContent = '请打开并登录一网通办后读取。'; messages.append(campusEmpty('暂无校园消息')); todos.append(campusEmpty('暂无事务待办')); return; }
+  if (!inboxData) { stateElement.textContent = '点击读取即可后台复用已登录会话；首次使用请先完成一次一网通办认证。'; messages.append(campusEmpty('暂无校园消息')); todos.append(campusEmpty('暂无事务待办')); return; }
   stateElement.textContent = `${inboxData.errors?.length ? `部分数据未读取：${inboxData.errors.join('、')} · ` : ''}更新于 ${new Date(inboxData.fetchedAt || Date.now()).toLocaleTimeString('zh-CN')}`;
   for (const [label, value, note] of [['校园消息', inboxData.messages?.length || 0, '最近消息'], ['事务待办', inboxData.todos?.length || 0, '待处理事项'], ['我的预约', inboxData.bookings || 0, '待使用'], ['校车预约', inboxData.busBookings || 0, '待使用']]) {
     const item = document.createElement('div'); item.className = 'summary-card';
@@ -867,8 +864,7 @@ async function loadInbox() {
   inboxLoading = true; renderInbox();
   try {
     const tab = await inboxTab();
-    if (!tab?.id) throw new Error('请先打开并登录一网通办');
-    const response = await call({ type: 'GET_SCHOOL_INBOX', tabId: tab.id });
+    const response = await call({ type: 'GET_SCHOOL_INBOX', tabId: tab?.id || 0 });
     inboxData = response.data; showNotice('事务与消息已更新', 'success');
   } catch (error) { inboxData = null; showNotice(error.message); }
   finally { inboxLoading = false; renderInbox(); }
@@ -880,7 +876,7 @@ function renderPersonal() {
   if (!stateElement || !summary || !books || !network) return;
   summary.replaceChildren(); books.replaceChildren(); network.replaceChildren();
   if (personalLoading) { stateElement.textContent = '正在读取个人摘要…'; return; }
-  if (!personalData) { stateElement.textContent = '请打开并登录一网通办后读取。'; books.append(campusEmpty('暂无借阅数据')); return; }
+  if (!personalData) { stateElement.textContent = '点击读取即可后台复用已登录会话；首次使用请先完成一次一网通办认证。'; books.append(campusEmpty('暂无借阅数据')); return; }
   stateElement.textContent = `${personalData.errors?.length ? `部分数据未读取：${personalData.errors.join('、')} · ` : ''}更新于 ${new Date(personalData.fetchedAt || Date.now()).toLocaleTimeString('zh-CN')}`;
   for (const [label, value, note] of [['借阅中', personalData.books?.length || 0, '当前借阅'], ['未读邮箱', personalData.unreadMail || 0, '邮箱摘要'], ['VPN要求', personalData.network?.enableVpn ? '可能需要' : '未标记', '服务网络要求']]) {
     const item = document.createElement('div'); item.className = 'summary-card';
@@ -892,7 +888,7 @@ function renderPersonal() {
   const networkRows = [['VPN', personalData.network?.enableVpn ? '服务可能需要 VPN' : '未标记需要 VPN'], ['登录自动连接', personalData.network?.autoConnectAtLogin ? '已配置' : '未配置'], ['校内网自动连接', personalData.network?.autoConnectAtIntranet ? '已配置' : '未配置']];
   for (const [label, text] of networkRows) { const row = document.createElement('div'); row.className = 'personal-network-row'; row.append(Object.assign(document.createElement('strong'), { textContent: label }), Object.assign(document.createElement('span'), { textContent: text })); network.append(row); }
 }
-async function loadPersonal() { personalLoading = true; renderPersonal(); try { const tab = await personalTab(); if (!tab?.id) throw new Error('请先打开并登录一网通办'); personalData = (await call({ type: 'GET_PERSONAL_DIGEST', tabId: tab.id })).data; showNotice('个人摘要已更新', 'success'); } catch (error) { personalData = null; showNotice(error.message); } finally { personalLoading = false; renderPersonal(); } }
+async function loadPersonal() { personalLoading = true; renderPersonal(); try { const tab = await personalTab(); personalData = (await call({ type: 'GET_PERSONAL_DIGEST', tabId: tab?.id || 0 })).data; showNotice('个人摘要已更新', 'success'); } catch (error) { personalData = null; showNotice(error.message); } finally { personalLoading = false; renderPersonal(); } }
 
 function resourcesFor(course) {
   if (Array.isArray(course.resources)) return course.resources;
@@ -1730,7 +1726,7 @@ function renderClassrooms() {
     return;
   }
   if (!classroomData) {
-    stateElement.textContent = classroomCodes.campuses.length ? '选择时间后查询。' : '请打开教务系统后加载校区和楼栋。';
+    stateElement.textContent = classroomCodes.campuses.length ? '选择时间后查询。' : '点击刷新即可后台读取校区和楼栋；首次使用请先完成一次教务认证。';
     summary.hidden = true;
     return;
   }
@@ -1818,8 +1814,7 @@ async function loadClassroomCodes() {
   if (button) { button.disabled = true; button.textContent = '读取中…'; }
   try {
     const tab = await campusTab();
-    if (!tab?.id) throw new Error('请先打开并登录教务系统');
-    const response = await call({ type: 'GET_CLASSROOM_CODES', tabId: tab.id });
+    const response = await call({ type: 'GET_CLASSROOM_CODES', tabId: tab?.id || 0 });
     classroomCodes = response.data || { campuses: [], buildings: [] };
     fillClassroomSelects();
     if (stateElement) stateElement.textContent = `已读取 ${classroomCodes.campuses.length} 个校区、${classroomCodes.buildings.length} 栋教学楼`;
@@ -1841,10 +1836,9 @@ async function queryClassrooms() {
   if (button) { button.disabled = true; button.textContent = '查询中…'; }
   try {
     const tab = await campusTab();
-    if (!tab?.id) throw new Error('请先打开并登录教务系统');
     const response = await call({
       type: 'GET_CLASSROOMS',
-      tabId: tab.id,
+      tabId: tab?.id || 0,
       query: {
         campusCode: $('#classroom-campus').value,
         buildingCode: $('#classroom-building').value,
@@ -1877,8 +1871,7 @@ async function loadCampus() {
     const tab = activeTab?.url?.startsWith('https://jwxt.xjtu.edu.cn/') || activeTab?.url?.startsWith('https://ywtb.xjtu.edu.cn/')
       ? activeTab
       : (await chrome.tabs.query({})).find(item => item.url?.startsWith('https://jwxt.xjtu.edu.cn/') || item.url?.startsWith('https://ywtb.xjtu.edu.cn/'));
-    if (!tab?.id) throw new Error('请先打开教务系统或一网通办');
-    const response = await call({ type: 'GET_CAMPUS_OVERVIEW', tabId: tab.id });
+    const response = await call({ type: 'GET_CAMPUS_OVERVIEW', tabId: tab?.id || 0 });
     campusData = response.data;
     showNotice('校园数据已更新', 'success');
   } catch (error) {
@@ -1919,7 +1912,7 @@ function renderAttendance() {
     return;
   }
   if (!attendanceData) {
-    stateElement.textContent = '请打开本科或研究生考勤系统后读取。';
+    stateElement.textContent = '点击读取即可后台复用已登录会话；首次使用请先完成一次考勤认证。';
     recordsElement.innerHTML = '<div class="attendance-empty">暂无考勤数据</div>';
     return;
   }
@@ -2007,8 +2000,7 @@ async function loadAttendance() {
   renderAttendance();
   try {
     const tab = await attendanceTab();
-    if (!tab?.id) throw new Error('请先打开并登录本科或研究生考勤系统');
-    const response = await call({ type: 'GET_ATTENDANCE_OVERVIEW', tabId: tab.id });
+    const response = await call({ type: 'GET_ATTENDANCE_OVERVIEW', tabId: tab?.id || 0 });
     attendanceData = response.data;
     showNotice('考勤数据已更新', 'success');
   } catch (error) {
