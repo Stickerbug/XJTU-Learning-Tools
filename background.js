@@ -153,7 +153,11 @@ async function sendToCampus(tabId, messageType = 'CAMPUS_GET_OVERVIEW') {
   let tab = await chrome.tabs.get(tabId);
   let url = parseTabUrl(tab);
   if (!['jwxt.xjtu.edu.cn', 'ywtb.xjtu.edu.cn'].includes(url.hostname)) {
-    throw new Error('请先打开教务系统或一网通办页面');
+    const fallbackUrl = ['CAMPUS_GET_PORTAL', 'CAMPUS_GET_PERSONAL_DIGEST'].includes(messageType) ? YWTB_HOME_URL :
+      messageType === 'CAMPUS_GET_CLASSROOMS' || messageType === 'CAMPUS_GET_CLASSROOM_CODES' ? CLASSROOM_PAGE_URL : JWXT_HOME_URL;
+    const response = await runInBackgroundTab(fallbackUrl, { type: messageType });
+    if (!response?.ok) throw new Error(response?.error || '后台读取校园页面失败');
+    return response;
   }
   if (['CAMPUS_GET_CLASSROOM_CODES', 'CAMPUS_GET_CLASSROOMS'].includes(messageType)) {
     if (url.hostname !== 'jwxt.xjtu.edu.cn') throw new Error('空教室查询需要打开教务系统');

@@ -4,7 +4,7 @@
 
 - 中文名称：仙交学习工具
 - 英文名称：XJTU Learning Tools
-- 当前版本：0.4.6
+- 当前版本：0.4.7
 - 目标 GitHub 仓库：https://github.com/Stickerbug/XJTU-Learning-Tools
 - 目标工作目录（由后续对话执行）：`D:\XJTU Learning Tools`
 - 项目形态：Chrome / Edge Manifest V3 浏览器扩展，无业务后端。
@@ -172,6 +172,12 @@ python scripts/package.py
 
 - 等待后台标签页真正导航到目标站点后再发送消息，避免临时 `about:blank` 状态触发无效 URL 错误。
 - 对临时标签页和现有标签页的地址解析增加明确错误提示。
+
+### 校园后台读取稳定性（0.4.7）
+
+- 校园门户从管理页触发时，不再把管理页自身误认为校园标签页，会自动使用一网通办后台会话。
+- 图书馆兼容 `qspace/qseat` 的包装返回结构、区域列表结构，并增加接口超时提示。
+- 校园卡余额和流水请求增加 15 秒超时，避免后台标签页长时间无响应。
 
 ## 6. 验证状态
 

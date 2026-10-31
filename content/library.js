@@ -28,6 +28,11 @@
     return path;
   }
 
+  function unwrap(payload) {
+    if (payload?.data && typeof payload.data === 'object' && !Array.isArray(payload.data)) return payload.data;
+    return payload || {};
+  }
+
   async function jsonResponse(response) {
     const body = await response.text();
     const trimmed = body.trim();
@@ -39,8 +44,17 @@
   }
 
   async function getJson(path) {
-    const response = await fetch(requestUrl(path), { credentials: 'include', headers: requestHeaders });
-    return jsonResponse(response);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch(requestUrl(path), { credentials: 'include', headers: requestHeaders, signal: controller.signal });
+      return await jsonResponse(response);
+    } catch (error) {
+      if (error?.name === 'AbortError') throw new Error('图书馆接口请求超时，请检查 WebVPN 或校园网连接');
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   function normalizeStats(value) {
@@ -54,11 +68,17 @@
   async function getFloor(floorCode) {
     const floor = FLOORS.get(String(floorCode || ''));
     if (!floor) throw new Error('无效的图书馆楼层');
-    const space = await getJson(`/qspace?lang=zh&floor=${encodeURIComponent(floorCode)}`);
-    const names = space?.sp && typeof space.sp === 'object' ? space.sp : {};
+    const space = unwrap(await getJson(`/qspace?lang=zh&floor=${encodeURIComponent(floorCode)}`));
+    const names = space?.sp && typeof space.sp === 'object' && !Array.isArray(space.sp) ? { ...space.sp } : {};
+    const areaList = Array.isArray(space?.areas) ? space.areas : Array.isArray(space?.spaces) ? space.spaces : [];
+    for (const area of areaList) {
+      const code = textValue(area?.code || area?.id || area?.sp);
+      if (code && !names[code]) names[code] = textValue(area?.name || area?.label || code);
+    }
     const initialStats = space?.scount && typeof space.scount === 'object' ? space.scount : {};
+    for (const code of Object.keys(initialStats)) if (!names[code]) names[code] = code;
     const areas = await Promise.all(Object.entries(names).map(async ([code, name]) => {
-      const payload = await getJson(`/qseat?sp=${encodeURIComponent(code)}`);
+      const payload = unwrap(await getJson(`/qseat?sp=${encodeURIComponent(code)}`));
       const stats = normalizeStats(payload?.scount?.[code]) || normalizeStats(initialStats[code]);
       const seats = Object.entries(payload?.seat || {}).map(([seatId, status]) => ({
         id: textValue(seatId), free: Number(status) === 0

@@ -157,7 +157,8 @@ async function syncPortal() {
   const button = $('#portal-sync');
   if (button) { button.disabled = true; button.textContent = '同步中…'; }
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tabs = await chrome.tabs.query({});
+    const tab = tabs.find(item => item.url?.startsWith('https://ywtb.xjtu.edu.cn/')) || null;
     const response = await call({ type: 'GET_CAMPUS_PORTAL', tabId: tab?.id || 0 });
     livePortalSites = response.data?.menus || [];
     renderPortal();

@@ -14,8 +14,17 @@
   }
 
   async function getJson(path, operation) {
-    const response = await fetch(path, { credentials: 'include', headers: { Accept: 'application/json' } });
-    return jsonResponse(response, operation);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch(path, { credentials: 'include', headers: { Accept: 'application/json' }, signal: controller.signal });
+      return await jsonResponse(response, operation);
+    } catch (error) {
+      if (error?.name === 'AbortError') throw new Error(`${operation}请求超时`);
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   function requireSuccess(payload, operation) {
