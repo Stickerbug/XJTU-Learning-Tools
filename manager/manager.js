@@ -728,10 +728,11 @@ function renderLibrary() {
     const seats = (area.seats || []).filter(seat => seat.free && (!query || seat.id.toLowerCase().includes(query)));
     const list = document.createElement('div');
     list.className = 'library-seat-list';
-    for (const seat of seats.slice(0, 160)) {
+    for (const seat of groupSeatIds(seats).slice(0, 160)) {
       const item = document.createElement('span');
       item.className = 'library-seat free';
-      item.textContent = seat.id;
+      item.textContent = seat.label;
+      item.title = seat.ids.join('、');
       list.append(item);
     }
     if (!seats.length) {
@@ -1715,6 +1716,66 @@ function renderClassroomPeriods() {
   });
 }
 
+function roomNumberParts(name) {
+  const text = String(name || '').trim();
+  let match = text.match(/^(.*?)([（(])(\d+)([）)])$/);
+  if (match) return { prefix: `${match[1]}${match[2]}`, suffix: match[4], number: Number(match[3]) };
+  match = text.match(/^(.*?[-－])(\d+)$/);
+  if (match) return { prefix: match[1], suffix: '', number: Number(match[2]) };
+  return null;
+}
+
+function compactNumberRanges(values) {
+  const numbers = [...new Set(values)].sort((a, b) => a - b);
+  const ranges = [];
+  for (const number of numbers) {
+    const previous = ranges[ranges.length - 1];
+    if (previous && number === previous[1] + 1) previous[1] = number;
+    else ranges.push([number, number]);
+  }
+  return ranges.map(([start, end]) => start === end ? String(start) : `${start}～${end}`).join('、');
+}
+
+function groupClassroomRooms(rooms) {
+  const buckets = new Map();
+  const singles = [];
+  for (const room of rooms) {
+    const parts = roomNumberParts(room.name);
+    if (!parts) { singles.push({ ...room, names: [room.name], roomCount: 1 }); continue; }
+    const key = [room.type, room.capacity, room.examCapacity, room.status, parts.prefix, parts.suffix].join('|');
+    if (!buckets.has(key)) buckets.set(key, { ...room, parts, items: [] });
+    buckets.get(key).items.push(room);
+  }
+  const grouped = [...buckets.values()].map(bucket => {
+    const items = [...bucket.items].sort((a, b) => roomNumberParts(a.name).number - roomNumberParts(b.name).number);
+    const parts = bucket.parts;
+    return {
+      ...bucket,
+      name: `${parts.prefix}${compactNumberRanges(items.map(item => roomNumberParts(item.name).number))}${parts.suffix}`,
+      names: items.map(item => item.name),
+      roomCount: items.length,
+      firstNumber: roomNumberParts(items[0].name).number
+    };
+  });
+  return [...singles, ...grouped].sort((a, b) => String(a.name).localeCompare(String(b.name), 'zh-CN', { numeric: true }));
+}
+
+function groupSeatIds(seats) {
+  const groups = new Map();
+  const singles = [];
+  for (const seat of seats) {
+    const match = String(seat.id || '').match(/^(.*?)(\d+)$/);
+    if (!match) { singles.push({ label: seat.id, ids: [seat.id] }); continue; }
+    if (!groups.has(match[1])) groups.set(match[1], []);
+    groups.get(match[1]).push({ id: seat.id, number: Number(match[2]) });
+  }
+  const ranges = [...groups.entries()].map(([prefix, items]) => {
+    const sorted = items.sort((a, b) => a.number - b.number);
+    return { label: `${prefix}${compactNumberRanges(sorted.map(item => item.number))}`, ids: sorted.map(item => item.id) };
+  });
+  return [...singles, ...ranges].sort((a, b) => String(a.label).localeCompare(String(b.label), 'zh-CN', { numeric: true }));
+}
+
 function renderClassrooms() {
   const stateElement = $('#classroom-state');
   const summary = $('#classroom-summary');
@@ -1775,18 +1836,21 @@ function renderClassrooms() {
     const freeCount = buildingRooms.filter(room => room.status === 'free').length;
     const meta = document.createElement('span');
     meta.className = 'muted';
-    meta.textContent = classroomData.occupied == null ? `${freeCount} 间空闲` : `${freeCount} 空闲 · ${buildingRooms.length - freeCount} 占用`;
+    const roomTotal = buildingRooms.reduce((sum, room) => sum + (room.roomCount || 1), 0);
+    const freeRooms = buildingRooms.filter(room => room.status === 'free').reduce((sum, room) => sum + (room.roomCount || 1), 0);
+    meta.textContent = classroomData.occupied == null ? `${freeRooms} 间空闲` : `${freeRooms} 空闲 · ${roomTotal - freeRooms} 占用`;
     heading.append(title, meta);
     section.append(heading);
     const list = document.createElement('div');
     list.className = 'classroom-room-list';
-    for (const room of buildingRooms) {
+    for (const room of groupClassroomRooms(buildingRooms)) {
       const row = document.createElement('div');
       row.className = `classroom-room ${room.status === 'occupied' ? 'is-occupied' : 'is-free'}`;
       const name = document.createElement('strong');
       name.textContent = room.name;
+      name.title = room.names.join('、');
       const details = document.createElement('span');
-      details.textContent = [room.type, room.capacity ? `${room.capacity} 座` : '', room.examCapacity ? `考试 ${room.examCapacity} 座` : ''].filter(Boolean).join(' · ');
+      details.textContent = [room.type, room.capacity ? `${room.capacity} 座` : '', room.examCapacity ? `考试 ${room.examCapacity} 座` : '', room.roomCount > 1 ? `${room.roomCount} 间` : ''].filter(Boolean).join(' · ');
       const status = document.createElement('span');
       status.className = 'classroom-room-status';
       status.textContent = room.status === 'occupied' ? '占用' : '空闲';
@@ -1796,9 +1860,9 @@ function renderClassrooms() {
       copy.textContent = '复制';
       copy.addEventListener('click', async () => {
         try {
-          await navigator.clipboard.writeText(`${building} ${room.name}`);
-          showNotice('教室名称已复制', 'success');
-        } catch { showNotice(`${building} ${room.name}`); }
+          await navigator.clipboard.writeText(room.names.map(name => `${building} ${name}`).join('\n'));
+          showNotice(room.roomCount > 1 ? `已复制 ${room.roomCount} 间教室` : '教室名称已复制', 'success');
+        } catch { showNotice(room.names.map(name => `${building} ${name}`).join('、')); }
       });
       row.append(name, details, status, copy);
       list.append(row);
