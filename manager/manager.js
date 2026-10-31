@@ -668,7 +668,13 @@ const LIBRARY_FLOORS = [
 
 function libraryTab() {
   return chrome.tabs.query({}).then(tabs => {
-    const matches = tab => { try { return new URL(tab.url || '').hostname === 'rg.lib.xjtu.edu.cn'; } catch { return false; } };
+    const matches = tab => {
+      try {
+        const url = new URL(tab.url || '');
+        if (url.hostname === 'rg.lib.xjtu.edu.cn') return true;
+        return url.hostname === 'webvpn.xjtu.edu.cn' && /^\/(?:http|https)(?:-\d+)?\/[0-9a-f]+\/.*(?:seat|qspace|qseat)/i.test(url.pathname);
+      } catch { return false; }
+    };
     return tabs.find(tab => tab.active && matches(tab)) || tabs.find(matches) || null;
   });
 }

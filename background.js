@@ -119,7 +119,9 @@ async function sendToLibrary(tabId, floorCode) {
   if (!tabId) throw new Error('请先打开图书馆座位页面');
   const tab = await chrome.tabs.get(tabId);
   const url = new URL(tab.url || '');
-  if (url.hostname !== 'rg.lib.xjtu.edu.cn') throw new Error('请先打开图书馆座位页面');
+  const direct = url.hostname === 'rg.lib.xjtu.edu.cn';
+  const webvpn = url.hostname === 'webvpn.xjtu.edu.cn' && /^\/(?:http|https)(?:-\d+)?\/[0-9a-f]+\/.*(?:seat|qspace|qseat)/i.test(url.pathname);
+  if (!direct && !webvpn) throw new Error('请先打开图书馆座位页面');
   const response = await chrome.tabs.sendMessage(tabId, { type: 'LIBRARY_GET_FLOOR', floorCode });
   if (!response?.ok) throw new Error(response?.error || '无法读取图书馆座位，请刷新后重试');
   return response;

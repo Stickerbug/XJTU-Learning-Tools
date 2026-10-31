@@ -75,6 +75,7 @@
 - 空教室查询：`POST /jwapp/sys/kxjas/modules/kxjscx/cxkxjs.do`
 - 查询参数：`XXXQDM`、`JXLDM`、`KXRQ`、`KSJC`、`JSJC`、`pageSize`、`pageNumber`；服务端单页通常限制为 15 条，需要连续翻页。
 - 若当前教务标签页停留在首页，插件会先切换到空闲教室功能页再读取楼栋字典，保证请求处于正确页面上下文。
+- 图书馆座位服务使用非标准 `8086` 端口，校外打开座位页应通过 WebVPN 代理入口；插件同时保留校内直连入口。
 
 ### 考勤只读接口
 

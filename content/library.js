@@ -19,6 +19,15 @@
     Accept: 'application/json, text/javascript, */*; q=0.01'
   };
 
+  function requestUrl(path) {
+    if (location.hostname === 'rg.lib.xjtu.edu.cn') return new URL(path, location.origin).toString();
+    if (location.hostname === 'webvpn.xjtu.edu.cn') {
+      const prefix = location.pathname.match(/^\/(?:http|https)(?:-\d+)?\/[0-9a-f]+\//i)?.[0];
+      if (prefix) return `${location.origin}${prefix}${String(path).replace(/^\/+/, '')}`;
+    }
+    return path;
+  }
+
   async function jsonResponse(response) {
     const body = await response.text();
     const trimmed = body.trim();
@@ -30,7 +39,7 @@
   }
 
   async function getJson(path) {
-    const response = await fetch(path, { credentials: 'include', headers: requestHeaders });
+    const response = await fetch(requestUrl(path), { credentials: 'include', headers: requestHeaders });
     return jsonResponse(response);
   }
 
