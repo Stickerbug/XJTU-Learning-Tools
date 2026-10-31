@@ -1682,13 +1682,15 @@ function fillClassroomSelects() {
   all.value = '';
   all.textContent = '全部楼栋';
   buildingSelect.append(all);
-  for (const building of classroomCodes.buildings || []) {
+  const selectedCampus = campusSelect.value;
+  const visibleBuildings = (classroomCodes.buildings || []).filter(building => !building.campusCode || building.campusCode === selectedCampus);
+  for (const building of visibleBuildings) {
     const option = document.createElement('option');
     option.value = building.code;
     option.textContent = building.name;
     buildingSelect.append(option);
   }
-  if (classroomCodes.buildings.some(item => item.code === previousBuilding)) buildingSelect.value = previousBuilding;
+  if (visibleBuildings.some(item => item.code === previousBuilding)) buildingSelect.value = previousBuilding;
 }
 
 function renderClassroomPeriods() {
@@ -2102,6 +2104,11 @@ $('#classroom-load-codes').addEventListener('click', loadClassroomCodes);
 $('#classroom-query').addEventListener('click', queryClassrooms);
 $('#classroom-date').value = localDateValue();
 renderClassroomPeriods();
+$('#classroom-campus').addEventListener('change', () => {
+  fillClassroomSelects();
+  classroomData = null;
+  renderClassrooms();
+});
 for (const selector of ['#classroom-capacity', '#classroom-type', '#classroom-status']) $(selector).addEventListener('input', renderClassrooms);
 $('#classroom-status').addEventListener('change', renderClassrooms);
 document.querySelector('[data-view="classrooms"]').addEventListener('click', () => {

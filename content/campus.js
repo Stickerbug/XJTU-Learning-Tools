@@ -52,11 +52,16 @@
   function normalizeSchedule(rows) {
     return rows.slice(0, 200).map(row => ({
       course: pick(row, ['KCM', 'KCMC', 'KCMX', 'courseName', 'course_name']),
-      teacher: pick(row, ['JSXM', 'JS', 'teacherName', 'teacher_name']),
+      teacher: pick(row, ['SKJSCH', 'SKJS', 'JSXM', 'JS', 'teacherName', 'teacher_name']),
       classroom: pick(row, ['JASMC', 'JASMC_DISPLAY', '教室', 'classroom', 'roomName']),
-      weekday: pick(row, ['XQJ', 'XQJMC', 'weekday', 'weekDay']),
-      section: pick(row, ['JCD', 'JCDMC', 'section', 'period']),
-      weeks: pick(row, ['ZC', 'ZCMC', 'weeks', 'weekRange'])
+      weekday: pick(row, ['SKXQ', 'XQJ', 'XQJMC', 'weekday', 'weekDay']),
+      section: (() => {
+        const start = pick(row, ['KSJC', 'JCD', 'JCDMC', 'section', 'period']);
+        const end = pick(row, ['JSJC']);
+        if (start && end && start !== end) return `${start}-${end}`;
+        return start || end;
+      })(),
+      weeks: pick(row, ['ZCMC', 'ZC', 'SKZC', 'weeks', 'weekRange'])
     })).filter(item => item.course || item.classroom || item.teacher);
   }
 
@@ -156,9 +161,15 @@
     if (current?.roleName === '学生') return;
     const student = groups.find(item => item.roleName === '学生');
     if (student?.roleId) {
-      await api('/jwapp/sys/homeapp/api/home/changeAppRole.do', {
-        method: 'POST', body: new URLSearchParams({ appRole: String(student.roleId) })
-      });
+      try {
+        await api('/jwapp/sys/jwpubapp/pub/setJwCommonAppRole.do', {
+          method: 'POST', body: new URLSearchParams({ ROLEID: String(student.roleId) })
+        });
+      } catch {
+        await api('/jwapp/sys/homeapp/api/home/changeAppRole.do', {
+          method: 'POST', body: new URLSearchParams({ appRole: String(student.roleId) })
+        });
+      }
     }
   }
 
@@ -176,21 +187,33 @@
       code: pick(row, ['id', 'code', 'value']), name: pick(row, ['name', 'text', 'label'])
     })).filter(item => item.code && item.name);
     const buildings = codeRows(buildingPayload).map(row => ({
-      code: pick(row, ['id', 'code', 'value']), name: pick(row, ['name', 'text', 'label'])
+      code: pick(row, ['id', 'code', 'value']),
+      name: pick(row, ['name', 'text', 'label']),
+      campusCode: pick(row, ['XXXQDM', 'campusCode']) || pick(row?.otherFields, ['XXXQDM', 'campusCode']),
+      campusName: pick(row, ['XXXQDM_DISPLAY', 'campusName']) || pick(row?.otherFields, ['XXXQDM_DISPLAY', 'campusName'])
     })).filter(item => item.code && item.name);
     classroomCodeCache = { campuses, buildings, updatedAt: Date.now() };
     return classroomCodeCache;
   }
 
   async function classroomQuery(campusCode, buildingCode, date, startSection, endSection) {
-    const payload = await api('/jwapp/sys/kxjas/modules/kxjscx/cxkxjs.do', {
-      method: 'POST',
-      body: new URLSearchParams({
-        XXXQDM: campusCode || '', JXLDM: buildingCode || '', KXRQ: date,
-        KSJC: String(startSection), JSJC: String(endSection), pageSize: '500', pageNumber: '1'
-      })
-    });
-    return normalizeRoomRows(rowsFrom(payload, ['datas.cxkxjs', 'data.cxkxjs', 'cxkxjs']), { campusCode });
+    const rows = [];
+    const pageSize = 500;
+    for (let pageNumber = 1; pageNumber <= 20; pageNumber += 1) {
+      const payload = await api('/jwapp/sys/kxjas/modules/kxjscx/cxkxjs.do', {
+        method: 'POST',
+        body: new URLSearchParams({
+          XXXQDM: campusCode || '', JXLDM: buildingCode || '', KXRQ: date,
+          KSJC: String(startSection), JSJC: String(endSection), pageSize: String(pageSize), pageNumber: String(pageNumber)
+        })
+      });
+      const root = payload?.datas?.cxkxjs || payload?.data?.cxkxjs || payload?.cxkxjs || {};
+      const pageRows = rowsFrom(payload, ['datas.cxkxjs', 'data.cxkxjs', 'cxkxjs']);
+      rows.push(...pageRows);
+      const total = Number(root.totalSize || root.total || 0);
+      if (!pageRows.length || (total && rows.length >= total) || pageRows.length < 15) break;
+    }
+    return normalizeRoomRows(rows, { campusCode });
   }
 
   async function classrooms(request = {}) {
@@ -200,7 +223,8 @@
     const campus = codes.campuses.find(item => item.code === String(request.campusCode || '')) || codes.campuses[0];
     if (!campus) throw new Error('未读取到校区列表');
     const selectedBuilding = String(request.buildingCode || '');
-    const buildings = codes.buildings.filter(item => !selectedBuilding || item.code === selectedBuilding);
+    const campusBuildings = codes.buildings.filter(item => !item.campusCode || item.campusCode === String(campus.code));
+    const buildings = campusBuildings.filter(item => !selectedBuilding || item.code === selectedBuilding);
     const date = String(request.date || new Date().toISOString().slice(0, 10));
     const startSection = Math.max(1, Math.min(11, Number(request.startSection) || 1));
     const endSection = Math.max(startSection, Math.min(11, Number(request.endSection) || startSection));

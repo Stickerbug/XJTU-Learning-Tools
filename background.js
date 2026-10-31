@@ -60,12 +60,43 @@ async function sendToLms(tabId, message) {
   return response;
 }
 
+const CLASSROOM_PAGE_URL = 'https://jwxt.xjtu.edu.cn/jwapp/sys/kxjas/*default/index.do#/kxjscx';
+
+function waitForTabComplete(tabId, timeout = 30000) {
+  return new Promise((resolve, reject) => {
+    let timer;
+    const finish = (error) => {
+      clearTimeout(timer);
+      chrome.tabs.onUpdated.removeListener(listener);
+      if (error) reject(error); else resolve();
+    };
+    const listener = (updatedTabId, changeInfo) => {
+      if (updatedTabId === tabId && changeInfo.status === 'complete') finish();
+    };
+    timer = setTimeout(() => finish(new Error('教务系统页面加载超时')), timeout);
+    chrome.tabs.onUpdated.addListener(listener);
+    chrome.tabs.get(tabId).then(tab => {
+      if (tab.status === 'complete') finish();
+    }).catch(finish);
+  });
+}
+
 async function sendToCampus(tabId, messageType = 'CAMPUS_GET_OVERVIEW') {
   if (!tabId) throw new Error('请先打开教务系统或一网通办');
-  const tab = await chrome.tabs.get(tabId);
-  const url = new URL(tab.url || '');
+  let tab = await chrome.tabs.get(tabId);
+  let url = new URL(tab.url || '');
   if (!['jwxt.xjtu.edu.cn', 'ywtb.xjtu.edu.cn'].includes(url.hostname)) {
     throw new Error('请先打开教务系统或一网通办页面');
+  }
+  if (['CAMPUS_GET_CLASSROOM_CODES', 'CAMPUS_GET_CLASSROOMS'].includes(messageType)) {
+    if (url.hostname !== 'jwxt.xjtu.edu.cn') throw new Error('空教室查询需要打开教务系统');
+    if (!url.pathname.includes('/jwapp/sys/kxjas/')) {
+      await chrome.tabs.update(tabId, { url: CLASSROOM_PAGE_URL });
+      await waitForTabComplete(tabId);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      tab = await chrome.tabs.get(tabId);
+      url = new URL(tab.url || '');
+    }
   }
   const response = await chrome.tabs.sendMessage(tabId, { type: messageType });
   if (!response?.ok) throw new Error(response?.error || '无法读取当前校园页面，请刷新后重试');

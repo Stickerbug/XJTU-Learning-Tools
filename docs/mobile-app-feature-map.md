@@ -73,7 +73,8 @@
 - 校区代码：`POST /jwapp/code/83a986fc-e677-400e-99a4-c7bb39c2ca35.do`
 - 教学楼代码：`POST /jwapp/code/551fbcc3-cf07-4566-af1e-fc7ce272ddc1.do`
 - 空教室查询：`POST /jwapp/sys/kxjas/modules/kxjscx/cxkxjs.do`
-- 查询参数：`XXXQDM`、`JXLDM`、`KXRQ`、`KSJC`、`JSJC`、`pageSize=500`、`pageNumber=1`
+- 查询参数：`XXXQDM`、`JXLDM`、`KXRQ`、`KSJC`、`JSJC`、`pageSize`、`pageNumber`；服务端单页通常限制为 15 条，需要连续翻页。
+- 若当前教务标签页停留在首页，插件会先切换到空闲教室功能页再读取楼栋字典，保证请求处于正确页面上下文。
 
 ### 考勤只读接口
 
