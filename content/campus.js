@@ -185,7 +185,10 @@
     ]);
     const campuses = codeRows(campusPayload).map(row => ({
       code: pick(row, ['id', 'code', 'value']), name: pick(row, ['name', 'text', 'label'])
-    })).filter(item => item.code && item.name);
+    })).filter(item => item.code && item.name).sort((a, b) => {
+      const rank = campus => campus.code === '1' || /兴庆/.test(campus.name) ? 0 : 1;
+      return rank(a) - rank(b) || String(a.name).localeCompare(String(b.name), 'zh-CN');
+    });
     const buildings = codeRows(buildingPayload).map(row => ({
       code: pick(row, ['id', 'code', 'value']),
       name: pick(row, ['name', 'text', 'label']),
@@ -220,7 +223,8 @@
     if (location.hostname !== 'jwxt.xjtu.edu.cn') throw new Error('请打开教务系统页面');
     await ensureStudentRole();
     const codes = await classroomCodes();
-    const campus = codes.campuses.find(item => item.code === String(request.campusCode || '')) || codes.campuses[0];
+    const defaultCampus = codes.campuses.find(item => item.code === '1' || /兴庆/.test(item.name)) || codes.campuses[0];
+    const campus = codes.campuses.find(item => item.code === String(request.campusCode || '')) || defaultCampus;
     if (!campus) throw new Error('未读取到校区列表');
     const selectedBuilding = String(request.buildingCode || '');
     const campusBuildings = codes.buildings.filter(item => !item.campusCode || item.campusCode === String(campus.code));

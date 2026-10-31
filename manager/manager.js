@@ -1674,13 +1674,18 @@ function fillClassroomSelects() {
   const previousCampus = campusSelect.value;
   const previousBuilding = buildingSelect.value;
   campusSelect.replaceChildren();
-  for (const campus of classroomCodes.campuses || []) {
+  const campuses = [...(classroomCodes.campuses || [])].sort((a, b) => {
+    const rank = campus => campus.code === '1' || /兴庆/.test(campus.name) ? 0 : 1;
+    return rank(a) - rank(b) || String(a.name).localeCompare(String(b.name), 'zh-CN');
+  });
+  for (const campus of campuses) {
     const option = document.createElement('option');
     option.value = campus.code;
     option.textContent = campus.name;
     campusSelect.append(option);
   }
-  if (classroomCodes.campuses.some(item => item.code === previousCampus)) campusSelect.value = previousCampus;
+  const preferredCampus = campuses.find(item => item.code === previousCampus) || campuses.find(item => item.code === '1' || /兴庆/.test(item.name)) || campuses[0];
+  if (preferredCampus) campusSelect.value = preferredCampus.code;
   buildingSelect.replaceChildren();
   const all = document.createElement('option');
   all.value = '';
