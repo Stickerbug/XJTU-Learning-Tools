@@ -1,7 +1,7 @@
 import { formatBytes, RESOURCE_SOURCES, matchScore, safeFilePart } from '../shared/core.js';
 
 const $ = selector => document.querySelector(selector);
-let state = { settings: {}, tasks: [], catalog: { courses: [] }, scanState: {} };
+let state = { settings: {}, tasks: [], catalog: { courses: [] }, scanState: {}, auth: { status: 'idle' } };
 let noticeTimer = null;
 let selectedCourseId = null;
 let resourceView = 'activities';
@@ -1587,11 +1587,77 @@ function renderTasks() {
 
 function renderSettings() {
   $('#setting-username').value = state.settings.username || '';
+  const authUsername = $('#auth-username');
+  if (authUsername && !authUsername.value) authUsername.value = state.settings.username || '';
   $('#setting-concurrency').value = String(state.settings.concurrency || 1);
   $('#setting-root').value = state.settings.root || 'XJTU';
   if (!$('#batch-track').dataset.initialized) {
     $('#batch-track').value = state.settings.defaultTrack || 'ENCODER';
     $('#batch-track').dataset.initialized = 'true';
+  }
+}
+
+function renderAuth() {
+  const stateElement = $('#auth-state');
+  const start = $('#auth-start');
+  const open = $('#auth-open-tab');
+  const cancel = $('#auth-cancel');
+  if (!stateElement || !start || !open || !cancel) return;
+  const auth = state.auth || { status: 'idle', message: '' };
+  const names = { starting: '准备登录…', submitting: '正在完成认证…', waiting_verification: '需要处理认证', success: '已登录', failed: '登录失败', canceled: '已取消', idle: '尚未登录' };
+  stateElement.className = `auth-state ${auth.status === 'success' ? 'is-online' : auth.status === 'waiting_verification' ? 'is-waiting' : ['failed', 'canceled'].includes(auth.status) ? 'is-error' : ''}`;
+  const fallback = auth.status === 'success' ? '浏览器会话已建立，读取校园数据时会直接复用。' : '已有浏览器会话时，直接读取数据即可。';
+  stateElement.textContent = `${names[auth.status] || auth.status}${auth.message ? ` · ${auth.message}` : ` · ${fallback}`}`;
+  const busy = ['starting', 'submitting'].includes(auth.status);
+  start.disabled = busy;
+  start.textContent = busy ? '登录中…' : auth.status === 'success' ? '重新登录' : '一键登录';
+  open.hidden = !auth.canOpen || !['waiting_verification', 'failed'].includes(auth.status);
+  cancel.hidden = !['starting', 'submitting', 'waiting_verification'].includes(auth.status);
+  if (auth.username && !$('#auth-username').value) $('#auth-username').value = auth.username;
+}
+
+async function startAuth() {
+  const button = $('#auth-start');
+  button.disabled = true;
+  try {
+    const username = $('#auth-username').value.trim();
+    const password = $('#auth-password').value;
+    const response = await call({
+      type: 'AUTH_START',
+      username,
+      password,
+      target: $('#auth-target').value,
+      rememberSession: $('#auth-remember').checked
+    });
+    state.auth = response.auth;
+    $('#auth-password').value = '';
+    renderAuth();
+    showNotice('已开始统一认证登录', 'success');
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    button.disabled = false;
+    renderAuth();
+  }
+}
+
+async function openAuthTab() {
+  try {
+    const response = await call({ type: 'AUTH_OPEN_TAB' });
+    state.auth = response.auth;
+    renderAuth();
+  } catch (error) {
+    showNotice(error.message);
+  }
+}
+
+async function cancelAuth() {
+  try {
+    const response = await call({ type: 'AUTH_CANCEL' });
+    state.auth = response.auth;
+    renderAuth();
+  } catch (error) {
+    showNotice(error.message);
   }
 }
 
@@ -1606,6 +1672,7 @@ async function loadState() {
   renderSettings();
   renderPortal();
   renderZyxf();
+  renderAuth();
   updateSelectionButtons();
 }
 
@@ -2112,6 +2179,9 @@ $('#export-catalog').addEventListener('click', exportCatalog);
 $('#portal-search').addEventListener('input', renderPortal);
 $('#portal-sync').addEventListener('click', syncPortal);
 $('#session-check').addEventListener('click', checkSession);
+$('#auth-start').addEventListener('click', startAuth);
+$('#auth-open-tab').addEventListener('click', openAuthTab);
+$('#auth-cancel').addEventListener('click', cancelAuth);
 $('#task-search').addEventListener('input', renderTasks);
 $('#task-state-filter').addEventListener('change', renderTasks);
 $('#campus-refresh').addEventListener('click', loadCampus);
@@ -2248,7 +2318,7 @@ const initialParams = new URLSearchParams(location.search);
 const initialView = initialParams.get('view');
 const initialDisplay = initialParams.get('display');
 if (['activities', 'sources', 'calendar'].includes(initialDisplay)) resourceView = initialDisplay;
-switchView(['resources', 'courses', 'campus', 'attendance', 'library', 'card', 'inbox', 'personal', 'classrooms', 'portal', 'zyxf', 'tasks', 'settings'].includes(initialView) ? initialView : 'resources');
+switchView(['resources', 'courses', 'campus', 'attendance', 'library', 'card', 'inbox', 'personal', 'classrooms', 'portal', 'zyxf', 'tasks', 'login', 'settings'].includes(initialView) ? initialView : 'resources');
 renderCampus();
 renderAttendance();
 renderLibrary();

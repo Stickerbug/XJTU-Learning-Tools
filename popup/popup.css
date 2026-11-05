@@ -34,6 +34,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   background: var(--blue);
   border-bottom: 3px solid rgba(0, 0, 0, .16);
 }
+.header-actions { display: flex; align-items: center; gap: 6px; }
 .app-header strong { display: block; font-size: 17px; letter-spacing: .02em; }
 .app-header span { display: block; margin-top: 3px; font-size: 11px; line-height: 1.35; opacity: .86; }
 .header-action {

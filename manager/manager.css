@@ -97,6 +97,19 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .setting-row { display: grid; grid-template-columns: 160px minmax(180px, 1fr); align-items: center; gap: 14px; margin: 18px 0; }
 .settings-block .button { margin-top: 10px; }
 
+.login-panel { max-width: 760px; padding: 24px 20px 28px; }
+.login-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; align-items: end; }
+.login-form label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 13px; }
+.login-form input, .login-form select { width: 100%; }
+.login-form .check-row { flex-direction: row; align-items: center; gap: 8px; min-height: 34px; }
+.login-form .check-row input { width: 15px; min-height: 15px; accent-color: var(--blue); }
+.login-form #auth-start { align-self: end; justify-self: start; }
+.auth-state { min-height: 48px; margin-top: 20px; padding: 12px 14px; color: var(--muted); background: #f7f7f7; border-left: 3px solid #aebdca; line-height: 1.5; }
+.auth-state.is-online { color: #18733a; background: #eef8f1; border-left-color: #2d9550; }
+.auth-state.is-waiting { color: #8a5b00; background: #fff9e9; border-left-color: #d89c22; }
+.auth-state.is-error { color: var(--red); background: #fff5f5; border-left-color: var(--red); }
+.login-note { max-width: 680px; margin-top: 16px; }
+
 .direct-adder { border-bottom: 1px solid var(--line); }
 .direct-adder summary { padding: 12px 20px; color: var(--blue); cursor: pointer; }
 .direct-form { display: flex; gap: 10px; padding: 0 20px 14px; }
@@ -363,6 +376,7 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
   .personal-grid { grid-template-columns: 1fr; padding: 14px; }
   .inbox-grid { grid-template-columns: 1fr; padding: 14px; }
   .attendance-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .login-form { grid-template-columns: 1fr; }
   .attendance-row { grid-template-columns: 96px minmax(130px, 1fr) 100px minmax(120px, 1fr) 80px; gap: 8px; padding-inline: 14px; }
   .classroom-room-list { grid-template-columns: 1fr; }
   .classroom-room:nth-child(odd) { border-right: 0; }
@@ -377,6 +391,7 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
   .task-filters { flex-direction: column; }
   .task-filters select { width: 100%; }
   .setting-row { grid-template-columns: 1fr; gap: 6px; margin: 14px 0; }
+  .login-panel { padding: 18px 14px 22px; }
   #portal-list { grid-template-columns: 1fr; }
   .grade-summary { grid-template-columns: 1fr; }
   .card-summary, .inbox-summary { grid-template-columns: 1fr; }

@@ -38,7 +38,7 @@ async function initialize() {
 const ready = initialize();
 
 function publicState() {
-  return { settings, tasks, catalog, scanState };
+  return { settings, tasks, catalog, scanState, auth: publicAuthState() };
 }
 
 function broadcast() {
@@ -61,11 +61,230 @@ async function sendToLms(tabId, message) {
 }
 
 const CLASSROOM_PAGE_URL = 'https://jwxt.xjtu.edu.cn/jwapp/sys/kxjas/*default/index.do#/kxjscx';
-const JWXT_HOME_URL = 'https://jwxt.xjtu.edu.cn/';
+const JWXT_HOME_URL = 'https://jwxt.xjtu.edu.cn/jwapp/sys/homeapp/index.do';
 const YWTB_HOME_URL = 'https://ywtb.xjtu.edu.cn/';
 const ATTENDANCE_HOME_URL = 'https://bk-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc';
 const LIBRARY_HOME_URL = 'https://webvpn.xjtu.edu.cn/http-8086/77726476706e69737468656265737421e2f00f902e322648741c9ce29d51367bae38/seat/';
 const CARD_HOME_URL = 'https://ncard.xjtu.edu.cn/';
+const AUTH_TARGETS = {
+  jwxt: { label: '教务系统', url: JWXT_HOME_URL, hosts: ['jwxt.xjtu.edu.cn'] },
+  ywtb: { label: '一网通办', url: YWTB_HOME_URL, hosts: ['ywtb.xjtu.edu.cn'] }
+};
+const AUTH_FLOW_STORAGE_KEY = 'authFlow';
+let authFlow = null;
+let authSessionCredentials = null;
+
+async function persistAuthFlow(flow = authFlow) {
+  if (!flow?.id || !flow.tabId || ['success', 'failed', 'canceled'].includes(flow.status)) return;
+  try {
+    await chrome.storage.session.set({
+      [AUTH_FLOW_STORAGE_KEY]: {
+        id: flow.id,
+        target: flow.target,
+        username: flow.username,
+        credentials: flow.credentials,
+        rememberSession: Boolean(flow.rememberSession),
+        status: flow.status,
+        message: flow.message || '',
+        tabId: flow.tabId,
+        submitted: Boolean(flow.submitted),
+        updatedAt: flow.updatedAt || Date.now()
+      }
+    });
+  } catch {}
+}
+
+async function clearPersistedAuthFlow() {
+  try { await chrome.storage.session.remove(AUTH_FLOW_STORAGE_KEY); } catch {}
+}
+
+async function restoreAuthFlow() {
+  if (authFlow) return authFlow;
+  try {
+    const stored = await chrome.storage.session.get(AUTH_FLOW_STORAGE_KEY);
+    const value = stored?.[AUTH_FLOW_STORAGE_KEY];
+    if (!value?.id || !value?.tabId || !value?.credentials?.username || !value?.credentials?.password) return null;
+    await chrome.tabs.get(value.tabId);
+    authFlow = { ...value, filling: false };
+  } catch {
+    await clearPersistedAuthFlow();
+  }
+  return authFlow;
+}
+
+function publicAuthState() {
+  if (!authFlow) return { status: 'idle', target: '', username: '', message: '', canOpen: false, remembered: false };
+  return {
+    status: authFlow.status,
+    target: authFlow.target,
+    username: authFlow.username,
+    message: authFlow.message || '',
+    canOpen: Number.isInteger(authFlow.tabId),
+    remembered: Boolean(authFlow.rememberSession),
+    updatedAt: authFlow.updatedAt || null
+  };
+}
+
+function updateAuthState(patch) {
+  if (!authFlow) authFlow = { status: 'idle', target: '', username: '', message: '' };
+  authFlow = { ...authFlow, ...patch, updatedAt: Date.now() };
+  persistAuthFlow(authFlow);
+  broadcast();
+}
+
+async function loadAuthSessionCredentials() {
+  if (authSessionCredentials) return authSessionCredentials;
+  try {
+    const stored = await chrome.storage.session.get('authCredentials');
+    const value = stored?.authCredentials;
+    if (value?.username && value?.password) authSessionCredentials = { username: String(value.username), password: String(value.password) };
+  } catch {}
+  return authSessionCredentials;
+}
+
+async function saveAuthSessionCredentials(credentials, remember) {
+  authSessionCredentials = remember ? credentials : null;
+  try {
+    if (remember) await chrome.storage.session.set({ authCredentials: credentials });
+    else await chrome.storage.session.remove('authCredentials');
+  } catch {}
+}
+
+function authTarget(target) {
+  return AUTH_TARGETS[target] || AUTH_TARGETS.jwxt;
+}
+
+function authUrlIsTarget(url, flow) {
+  try {
+    const parsed = new URL(url || '');
+    return authTarget(flow.target).hosts.includes(parsed.hostname) && !parsed.hostname.includes('login.xjtu.edu.cn');
+  } catch {
+    return false;
+  }
+}
+
+async function sendAuthFill(flow) {
+  if (!flow?.tabId || !flow.credentials || flow.filling) return;
+  flow.filling = true;
+  try {
+    const response = await sendTabMessage(flow.tabId, { type: 'AUTH_FILL', ...flow.credentials }, 8);
+    if (!response?.ok) throw new Error(response?.error || '统一认证登录表单未就绪');
+    if (response.submitted) updateAuthState({ status: 'submitting', message: '已提交统一认证，等待校园系统回调', submitted: true });
+    else if (response.state?.needsCaptcha || response.state?.needsMfa || response.state?.needsAccountChoice) {
+      updateAuthState({ status: 'waiting_verification', message: '统一认证需要在认证页完成验证码、二次认证或身份选择', submitted: true });
+    }
+  } catch (error) {
+    if (authFlow?.id !== flow.id) return;
+    updateAuthState({ status: 'failed', message: error?.message || '无法连接统一认证页' });
+  } finally {
+    flow.filling = false;
+  }
+}
+
+async function finishAuth(flow, status, message) {
+  if (!authFlow || authFlow.id !== flow.id) return;
+  updateAuthState({ status, message, canOpen: Number.isInteger(flow.tabId) });
+  if (status === 'success') {
+    await saveAuthSessionCredentials(flow.credentials, flow.rememberSession);
+    await new Promise(resolve => setTimeout(resolve, 900));
+    if (flow.tabId) await chrome.tabs.remove(flow.tabId).catch(() => {});
+    authFlow = { ...authFlow, tabId: null, credentials: null, canOpen: false, updatedAt: Date.now() };
+    await clearPersistedAuthFlow();
+    broadcast();
+  } else if (status === 'failed') {
+    authFlow = { ...authFlow, credentials: null, tabId: null, updatedAt: Date.now() };
+    await clearPersistedAuthFlow();
+    broadcast();
+  }
+}
+
+async function runAuthFlow(flow) {
+  const started = Date.now();
+  while (authFlow?.id === flow.id && Date.now() - started < 45000) {
+    try {
+      const tab = await chrome.tabs.get(flow.tabId);
+      if (authUrlIsTarget(tab.url, flow)) {
+        // 初始目标页可能还会继续重定向到 CAS，连续确认一次再判定为已登录。
+        await delay(1200);
+        const settled = await chrome.tabs.get(flow.tabId);
+        if (authUrlIsTarget(settled.url, flow)) {
+          await finishAuth(flow, 'success', `已登录${authTarget(flow.target).label}，后续校园数据会复用浏览器会话`);
+          return;
+        }
+      } else if (new URL(tab.url || '').hostname === 'login.xjtu.edu.cn' && !flow.submitted && authFlow.status !== 'waiting_verification') {
+        await sendAuthFill(flow);
+      }
+    } catch {}
+    await delay(500);
+  }
+  if (authFlow?.id === flow.id && !['success', 'canceled'].includes(authFlow.status)) {
+    await finishAuth(flow, 'failed', '统一认证页面加载超时，请打开认证页检查登录状态');
+  }
+}
+
+async function startAuth(message) {
+  await restoreAuthFlow();
+  if (authFlow && ['starting', 'submitting', 'waiting_verification'].includes(authFlow.status)) throw new Error('已有统一认证登录正在进行');
+  const remembered = Boolean(message.rememberSession);
+  const stored = !message.password ? await loadAuthSessionCredentials() : null;
+  const username = String(message.username || stored?.username || '').trim().slice(0, 64);
+  const password = String(message.password || stored?.password || '');
+  if (!username || !password) throw new Error('请输入学号和密码');
+  const target = AUTH_TARGETS[message.target] ? message.target : 'jwxt';
+  const flow = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    target,
+    username,
+    credentials: { username, password },
+    rememberSession: remembered,
+    status: 'starting',
+    message: '正在打开统一认证页面',
+    tabId: null,
+    submitted: false,
+    updatedAt: Date.now()
+  };
+  authFlow = flow;
+  broadcast();
+  const tab = await chrome.tabs.create({ url: authTarget(target).url, active: false });
+  if (!authFlow || authFlow.id !== flow.id) {
+    await chrome.tabs.remove(tab.id).catch(() => {});
+    throw new Error('登录流程已取消');
+  }
+  flow.tabId = tab.id;
+  authFlow = flow;
+  await persistAuthFlow(flow);
+  broadcast();
+  runAuthFlow(flow);
+  return publicAuthState();
+}
+
+async function handleAuthPageEvent(sender, state) {
+  await restoreAuthFlow();
+  if (!authFlow || sender.tab?.id !== authFlow.tabId) return { ok: true };
+  if (state?.kind === 'cas') {
+    if (state.needsCaptcha || state.needsMfa || state.needsAccountChoice) {
+      updateAuthState({ status: 'waiting_verification', submitted: true, message: state.needsCaptcha ? '请输入统一认证验证码' : state.needsMfa ? '请完成统一认证二次验证' : '请选择要进入的身份' });
+      return { ok: true };
+    }
+    if (state.error && authFlow.submitted) {
+      updateAuthState({ status: 'failed', message: state.error });
+      return { ok: true };
+    }
+    if (state.ready && !authFlow.submitted) await sendAuthFill(authFlow);
+  }
+  return { ok: true };
+}
+
+async function cancelAuth() {
+  const flow = authFlow;
+  authFlow = { status: 'canceled', target: flow?.target || '', username: flow?.username || '', message: '登录已取消', tabId: null, updatedAt: Date.now() };
+  if (flow?.tabId) await chrome.tabs.remove(flow.tabId).catch(() => {});
+  authSessionCredentials = null;
+  try { await chrome.storage.session.remove('authCredentials'); } catch {}
+  await clearPersistedAuthFlow();
+  broadcast();
+  return publicAuthState();
+}
 
 function waitForTabComplete(tabId, timeout = 30000, expectedHost = '') {
   return new Promise((resolve, reject) => {
@@ -853,6 +1072,27 @@ async function syncDownloads() {
   }
 }
 
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+  await restoreAuthFlow();
+  if (!authFlow || tabId !== authFlow.tabId) return;
+  if (changeInfo.status !== 'complete' && !changeInfo.url) return;
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (authUrlIsTarget(tab.url, authFlow)) {
+      await delay(900);
+      const settled = await chrome.tabs.get(tabId);
+      if (!authUrlIsTarget(settled.url, authFlow)) return;
+      await finishAuth(authFlow, 'success', `已登录${authTarget(authFlow.target).label}，后续校园数据会复用浏览器会话`);
+    }
+  } catch {}
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (authFlow?.tabId === tabId && !['success', 'canceled'].includes(authFlow.status)) {
+    updateAuthState({ status: 'canceled', message: '认证页已关闭', tabId: null });
+  }
+});
+
 chrome.downloads.onChanged.addListener(async delta => {
   await ready;
   const task = tasks.find(item => item.downloadId === delta.id);
@@ -882,7 +1122,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     await ready;
     switch (message.type) {
+      case 'AUTH_GET_STATE':
+        await restoreAuthFlow();
+        return { ok: true, auth: publicAuthState() };
+      case 'AUTH_START':
+        return { ok: true, auth: await startAuth(message) };
+      case 'AUTH_PAGE_EVENT':
+        return handleAuthPageEvent(sender, message.state || {});
+      case 'AUTH_OPEN_TAB': {
+        await restoreAuthFlow();
+        if (!authFlow?.tabId) throw new Error('当前没有需要处理的认证页');
+        await chrome.tabs.update(authFlow.tabId, { active: true });
+        return { ok: true, auth: publicAuthState() };
+      }
+      case 'AUTH_CANCEL':
+        await restoreAuthFlow();
+        return { ok: true, auth: await cancelAuth() };
       case 'GET_STATE':
+        await restoreAuthFlow();
         await syncDownloads();
         return { ok: true, ...publicState() };
       case 'GET_ACTIVITY_CONTEXT': {

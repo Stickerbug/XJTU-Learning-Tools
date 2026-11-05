@@ -194,6 +194,7 @@ $('#download-replay').addEventListener('click', async () => {
 });
 
 $('#open-manager').addEventListener('click', () => openManager());
+$('#open-login').addEventListener('click', () => openManager('login'));
 $('#show-tasks').addEventListener('click', () => openManager('tasks'));
 $('#open-lms').addEventListener('click', () => chrome.tabs.create({ url: 'https://lms.xjtu.edu.cn/' }));
 $('#scan-courses').addEventListener('click', async () => {
