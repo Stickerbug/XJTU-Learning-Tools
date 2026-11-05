@@ -7,7 +7,7 @@ let noticeTimer = null;
 
 const SITE_LINKS = [
   { host: 'lms.xjtu.edu.cn', title: '思源学堂', links: [['打开首页', 'https://lms.xjtu.edu.cn/'], ['批量下载', 'manager:resources'], ['课程清单', 'manager:courses']] },
-  { host: 'jwxt.xjtu.edu.cn', title: '教务系统', links: [['空教室', 'manager:classrooms'], ['读取校园数据', 'manager:campus'], ['打开教务', 'https://jwxt.xjtu.edu.cn/'], ['我的课表', 'https://jwxt.xjtu.edu.cn/jwapp/sys/wdkb/modules/xskcb/xskcb.do'], ['成绩查询', 'https://jwxt.xjtu.edu.cn/jwapp/sys/cjcx/modules/cjcx/xscjcx.do'], ['一网通办', 'https://ywtb.xjtu.edu.cn/']] },
+  { host: 'jwxt.xjtu.edu.cn', title: '教务系统', links: [['空教室', 'manager:classrooms'], ['全校课程', 'manager:school-courses'], ['读取校园数据', 'manager:campus'], ['打开教务', 'https://jwxt.xjtu.edu.cn/'], ['我的课表', 'https://jwxt.xjtu.edu.cn/jwapp/sys/wdkb/modules/xskcb/xskcb.do'], ['成绩查询', 'https://jwxt.xjtu.edu.cn/jwapp/sys/cjcx/modules/cjcx/xscjcx.do'], ['一网通办', 'https://ywtb.xjtu.edu.cn/']] },
   { host: 'ywtb.xjtu.edu.cn', title: '一网通办', links: [['读取校园数据', 'manager:campus'], ['打开一网通办', 'https://ywtb.xjtu.edu.cn/'], ['教务系统', 'https://jwxt.xjtu.edu.cn/']] },
   { host: 'bk-kq.xjtu.edu.cn', title: '本科考勤', links: [['读取考勤', 'manager:attendance'], ['打开本科考勤', 'https://bk-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc'], ['研究生考勤', 'https://yjs-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc']] },
   { host: 'yjs-kq.xjtu.edu.cn', title: '研究生考勤', links: [['读取考勤', 'manager:attendance'], ['打开研究生考勤', 'https://yjs-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc'], ['本科考勤', 'https://bk-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc']] },

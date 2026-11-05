@@ -85,6 +85,91 @@
     })).filter(item => item.course || item.score);
   }
 
+  function normalizeSchoolCourse(row, fallbackTerm = '') {
+    return {
+      code: pick(row, ['KCH', 'courseCode', 'course_code']),
+      name: pick(row, ['KCM', 'KCMC', 'courseName', 'course_name']),
+      classCode: pick(row, ['KXH', 'classCode', 'class_code']),
+      teachers: pick(row, ['SKJS', 'teachers', 'teacherName']),
+      department: pick(row, ['KKDWDM_DISPLAY', 'department', 'deptName']),
+      credit: pick(row, ['XF', 'credit', 'coursePoint']),
+      hours: pick(row, ['XS', 'hours']),
+      campus: pick(row, ['XXXQDM_DISPLAY', 'campus', 'campusName']),
+      capacity: pick(row, ['KRL', 'capacity']),
+      selected: pick(row, ['XKZRS', 'NSXKRS', 'selected']),
+      timePlace: pick(row, ['YPSJDD', 'timePlace', 'time_place']),
+      elective: pick(row, ['XGXKLBDM_DISPLAY', 'elective', 'electiveName']),
+      term: pick(row, ['XNXQDM', 'XNXQDM_DISPLAY', 'termCode', 'termName']) || fallbackTerm
+    };
+  }
+
+  async function schoolCourseMeta() {
+    await ensureStudentRole();
+    await fetch('/jwapp/sys/kcbcx/*default/index.do', { credentials: 'include', headers: { Accept: 'text/html' } });
+    const [currentPayload, termPayload, departmentPayload] = await Promise.all([
+      api('/jwapp/sys/kcbcx/modules/bjkcb/dqxnxq.do', { method: 'POST' }),
+      api('/jwapp/sys/kcbcx/modules/bjkcb/xnxqcx.do', { method: 'POST', body: new URLSearchParams({ '*order': '-DM' }) }),
+      api('/jwapp/code/44e02e19-e31b-4916-91b2-0a04380cbd3a.do', { method: 'POST' })
+    ]);
+    const currentRow = rowsFrom(currentPayload, ['datas.dqxnxq', 'data.dqxnxq', 'dqxnxq'])[0] || {};
+    const currentTerm = pick(currentRow, ['DM', 'dm', 'termCode', 'XNXQDM']);
+    const terms = rowsFrom(termPayload, ['datas.xnxqcx', 'data.xnxqcx', 'xnxqcx']).map(row => ({
+      code: pick(row, ['DM', 'code', 'termCode']), name: pick(row, ['MC', 'name', 'termName']) || pick(row, ['DM', 'code'])
+    })).filter(item => item.code);
+    const departments = rowsFrom(departmentPayload, ['datas.code', 'data.code', 'code']).map(row => ({
+      code: pick(row, ['id', 'code', 'value']), name: pick(row, ['name', 'text', 'label'])
+    })).filter(item => item.code && item.name);
+    return { currentTerm, terms, departments };
+  }
+
+  async function schoolCourses(request = {}) {
+    if (location.hostname !== 'jwxt.xjtu.edu.cn') throw new Error('请打开教务系统页面');
+    const meta = await schoolCourseMeta();
+    const term = String(request.term || meta.currentTerm || meta.terms[0]?.code || '');
+    if (request.metaOnly) return { ...meta, total: 0, courses: [] };
+    const conditions = [
+      { name: 'XNXQDM', value: term, linkOpt: 'and', builder: 'equal' },
+      [
+        { name: 'RWZTDM', value: '1', linkOpt: 'and', builder: 'equal' },
+        { name: 'RWZTDM', linkOpt: 'or', builder: 'isNull' }
+      ]
+    ];
+    const addCondition = (name, value, builder = 'include', builderList = 'cbl_String') => {
+      if (!value) return;
+      conditions.push({ name, caption: name, linkOpt: 'AND', builderList, builder, value });
+    };
+    addCondition('KCM', textValue(request.courseName));
+    addCondition('KKDWDM', textValue(request.department), 'equal');
+    addCondition('XXXQDM', textValue(request.campus), 'equal');
+    addCondition('XGXKLBDM', textValue(request.elective), 'm_value_equal', 'cbl_m_List');
+    const pageSize = Math.min(100, Math.max(1, Number(request.pageSize) || 30));
+    const pageNumber = Math.max(1, Number(request.page) || 1);
+    const payload = await api('/jwapp/sys/kcbcx/modules/qxkcb/qxfbkccx.do', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+      body: new URLSearchParams({
+        querySetting: JSON.stringify(conditions),
+        '*order': '+KKDWDM,+KCH,+KXH',
+        SKXQ: textValue(request.weekday),
+        KSJC: textValue(request.startSection),
+        JSJC: textValue(request.endSection),
+        pageSize: String(pageSize),
+        pageNumber: String(pageNumber)
+      })
+    });
+    const block = payload?.datas?.qxfbkccx || payload?.data?.qxfbkccx || payload?.qxfbkccx || {};
+    const rows = rowsFrom(payload, ['datas.qxfbkccx', 'data.qxfbkccx', 'qxfbkccx']);
+    return {
+      ...meta,
+      currentTerm: meta.currentTerm || term,
+      term,
+      total: Number(block.totalSize || block.total || rows.length) || rows.length,
+      page: pageNumber,
+      pageSize,
+      courses: rows.map(row => normalizeSchoolCourse(row, term)).filter(item => item.name || item.code)
+    };
+  }
+
   async function jwxtOverview() {
     await ensureStudentRole();
     const userRequest = api('/jwapp/sys/homeapp/api/home/currentUser.do');
@@ -379,7 +464,7 @@
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (!['CAMPUS_GET_OVERVIEW', 'CAMPUS_GET_PORTAL', 'CAMPUS_GET_STATUS', 'CAMPUS_GET_CLASSROOM_CODES', 'CAMPUS_GET_CLASSROOMS', 'CAMPUS_GET_TOKEN', 'CAMPUS_GET_PERSONAL_DIGEST'].includes(message?.type)) return false;
+    if (!['CAMPUS_GET_OVERVIEW', 'CAMPUS_GET_PORTAL', 'CAMPUS_GET_STATUS', 'CAMPUS_GET_CLASSROOM_CODES', 'CAMPUS_GET_CLASSROOMS', 'CAMPUS_GET_SCHOOL_COURSES', 'CAMPUS_GET_TOKEN', 'CAMPUS_GET_PERSONAL_DIGEST'].includes(message?.type)) return false;
     if (message.type === 'CAMPUS_GET_TOKEN') {
       sendResponse({ ok: true, token: sessionToken() });
       return false;
@@ -388,7 +473,8 @@
       : message.type === 'CAMPUS_GET_PERSONAL_DIGEST' ? personalDigest()
       : message.type === 'CAMPUS_GET_STATUS' ? loginStatus()
         : message.type === 'CAMPUS_GET_CLASSROOM_CODES' ? classroomCodes()
-        : message.type === 'CAMPUS_GET_CLASSROOMS' ? classrooms(message.query || {}) : overview();
+        : message.type === 'CAMPUS_GET_CLASSROOMS' ? classrooms(message.query || {})
+          : message.type === 'CAMPUS_GET_SCHOOL_COURSES' ? schoolCourses(message.query || {}) : overview();
     request.then(data => sendResponse({ ok: true, data }))
       .catch(error => sendResponse({ ok: false, error: textValue(error?.message || error) }));
     return true;

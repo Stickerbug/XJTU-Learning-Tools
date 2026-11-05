@@ -242,6 +242,15 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .attendance-filters { display: flex; flex-wrap: wrap; gap: 10px 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: #fafafa; }
 .attendance-filters label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
 .attendance-filters select { min-width: 150px; }
+.school-course-filters { display: flex; flex-wrap: wrap; gap: 10px 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: #fafafa; }
+.school-course-filters label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.school-course-keyword { flex: 1 1 220px; }
+.school-course-keyword input { flex: 1; min-width: 150px; }
+.school-course-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 18px 20px; background: #f8f8f8; }
+.school-course-card { min-width: 0; padding: 14px; background: #fff; border: 1px solid var(--line); border-top: 3px solid #90b8d4; }
+.school-course-title { display: flex; flex-direction: column; gap: 4px; color: var(--ink); font-weight: 700; line-height: 1.45; }
+.school-course-meta { margin-top: 9px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.school-course-capacity { display: block; margin-top: 8px; color: var(--blue); font-size: 12px; }
 .attendance-records { background: #fff; }
 .attendance-row { display: grid; grid-template-columns: 110px minmax(180px, 1fr) 120px minmax(150px, 1fr) 90px; gap: 12px; align-items: center; min-height: 54px; padding: 10px 20px; border-bottom: 1px solid #ededed; }
 .attendance-row-head { color: var(--muted); background: #f7f7f7; font-size: 13px; }
@@ -376,6 +385,7 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
   .personal-grid { grid-template-columns: 1fr; padding: 14px; }
   .inbox-grid { grid-template-columns: 1fr; padding: 14px; }
   .attendance-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .school-course-results { grid-template-columns: 1fr; padding: 14px; }
   .login-form { grid-template-columns: 1fr; }
   .attendance-row { grid-template-columns: 96px minmax(130px, 1fr) 100px minmax(120px, 1fr) 80px; gap: 8px; padding-inline: 14px; }
   .classroom-room-list { grid-template-columns: 1fr; }
@@ -406,6 +416,8 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
   .classroom-filters { flex-direction: column; }
   .attendance-filters { flex-direction: column; }
   .attendance-filters label, .attendance-filters select { width: 100%; }
+  .school-course-filters { flex-direction: column; }
+  .school-course-filters label, .school-course-filters input, .school-course-filters select { width: 100%; }
   .attendance-row { grid-template-columns: 1fr auto; gap: 5px 10px; padding: 11px 14px; }
   .attendance-row-head { display: none; }
   .attendance-row > span:nth-child(1) { color: var(--muted); font-size: 12px; }

@@ -16,6 +16,7 @@
       <button class="nav-button active" data-view="resources" type="button">批量下载</button>
       <button class="nav-button" data-view="courses" type="button">课程</button>
       <button class="nav-button" data-view="campus" type="button">校园数据</button>
+      <button class="nav-button" data-view="school-courses" type="button">全校课程</button>
       <button class="nav-button" data-view="attendance" type="button">考勤摘要</button>
       <button class="nav-button" data-view="library" type="button">图书馆座位</button>
       <button class="nav-button" data-view="card" type="button">校园卡</button>
@@ -253,6 +254,31 @@
       <div class="personal-grid"><section class="campus-panel"><div class="campus-panel-head"><h2>图书借阅</h2></div><div id="personal-books" class="inbox-list"></div></section><section class="campus-panel"><div class="campus-panel-head"><h2>网络要求</h2></div><div id="personal-network" class="personal-network"></div></section></div>
     </section>
 
+    <section id="view-school-courses" class="view" hidden>
+      <div class="toolbar">
+        <div>
+          <h1>全校课程</h1>
+          <p class="muted">按学期、课程名、院系、校区、选修类别和上课节次查找可选课程</p>
+        </div>
+        <div class="toolbar-actions">
+          <a class="button secondary" href="https://jwxt.xjtu.edu.cn/jwapp/sys/kcbcx/*default/index.do" target="_blank" rel="noreferrer">打开教务课程页</a>
+          <button id="school-course-query" class="button primary" type="button">查询课程</button>
+        </div>
+      </div>
+      <div class="school-course-filters">
+        <label>学期<select id="school-course-term"></select></label>
+        <label class="school-course-keyword">课程名<input id="school-course-name" type="search" placeholder="例如 高等数学、程序设计"></label>
+        <label>开课院系<select id="school-course-department"><option value="">全部院系</option></select></label>
+        <label>校区<select id="school-course-campus"><option value="">全部校区</option><option value="1">兴庆校区</option><option value="2">雁塔校区</option><option value="3">曲江校区</option><option value="4">苏州校区</option><option value="5">创新港校区</option></select></label>
+        <label>选修类别<select id="school-course-elective"><option value="">全部类别</option><option value="06">基础通识选修</option><option value="07">基础通识核心</option><option value="08">钱学森特色</option></select></label>
+        <label>星期<select id="school-course-weekday"><option value="">全部星期</option><option value="1">周一</option><option value="2">周二</option><option value="3">周三</option><option value="4">周四</option><option value="5">周五</option><option value="6">周六</option><option value="7">周日</option></select></label>
+        <label>节次<input id="school-course-sections" inputmode="numeric" placeholder="如 1-4"></label>
+      </div>
+      <div id="school-course-state" class="campus-state">读取教务系统课程目录后显示结果。</div>
+      <div id="school-course-summary" class="classroom-summary" hidden></div>
+      <div id="school-course-results" class="school-course-results"></div>
+    </section>
+
     <section id="view-attendance" class="view" hidden>
       <div class="toolbar">
         <div>
@@ -262,12 +288,13 @@
         <div class="toolbar-actions">
           <a class="button secondary" href="https://bk-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc" target="_blank" rel="noreferrer">打开本科考勤</a>
           <a class="button secondary" href="https://yjs-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc" target="_blank" rel="noreferrer">打开研究生考勤</a>
-          <button id="attendance-refresh" class="button primary" type="button">读取当前学期</button>
+          <button id="attendance-refresh" class="button primary" type="button">读取考勤</button>
         </div>
       </div>
       <div id="attendance-state" class="campus-state">点击读取即可后台复用已登录会话；首次使用请先完成一次统一认证。</div>
       <div id="attendance-summary" class="classroom-summary attendance-summary" aria-label="考勤统计"></div>
       <div class="attendance-filters">
+        <label>学期<select id="attendance-term"><option value="">当前学期</option></select></label>
         <label>课程<select id="attendance-course-filter"><option value="all">全部课程</option></select></label>
         <label>状态<select id="attendance-status-filter">
           <option value="all">全部状态</option>

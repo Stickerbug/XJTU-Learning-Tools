@@ -96,10 +96,10 @@
     };
   }
 
-  async function getOverview() {
+  async function getOverview(request = {}) {
     const semesterPayload = await api('/sa/student/service/timetable/semesters');
     const semesters = rowsFrom(semesterPayload).map(normalizeSemester).filter(item => item.id || item.name);
-    const current = semesters[0] || {};
+    const current = semesters.find(item => item.id === textValue(request.semesterId)) || semesters[0] || {};
     if (!current.startDate || !current.endDate) throw new Error('考勤系统未返回当前学期日期');
     const records = [];
     const pageSize = 500;
@@ -131,7 +131,7 @@
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type !== 'ATTENDANCE_GET_OVERVIEW') return false;
-    getOverview().then(data => sendResponse({ ok: true, data })).catch(error => sendResponse({ ok: false, error: error.message || '读取考勤失败' }));
+    getOverview(message.query || {}).then(data => sendResponse({ ok: true, data })).catch(error => sendResponse({ ok: false, error: error.message || '读取考勤失败' }));
     return true;
   });
 })();

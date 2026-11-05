@@ -385,11 +385,12 @@ async function runInBackgroundTab(url, message) {
   }
 }
 
-async function sendToCampus(tabId, messageType = 'CAMPUS_GET_OVERVIEW') {
+async function sendToCampus(tabId, messageType = 'CAMPUS_GET_OVERVIEW', query = {}) {
+  const message = { type: messageType, ...(query && Object.keys(query).length ? { query } : {}) };
   if (!tabId) {
     const url = ['CAMPUS_GET_PORTAL', 'CAMPUS_GET_PERSONAL_DIGEST'].includes(messageType) ? YWTB_HOME_URL :
       messageType === 'CAMPUS_GET_CLASSROOMS' || messageType === 'CAMPUS_GET_CLASSROOM_CODES' ? CLASSROOM_PAGE_URL : JWXT_HOME_URL;
-    const response = await runInBackgroundTab(url, { type: messageType });
+    const response = await runInBackgroundTab(url, message);
     if (!response?.ok) throw new Error(response?.error || '后台读取校园页面失败');
     return response;
   }
@@ -400,15 +401,20 @@ async function sendToCampus(tabId, messageType = 'CAMPUS_GET_OVERVIEW') {
   } catch {
     const fallbackUrl = ['CAMPUS_GET_PORTAL', 'CAMPUS_GET_PERSONAL_DIGEST'].includes(messageType) ? YWTB_HOME_URL :
       messageType === 'CAMPUS_GET_CLASSROOMS' || messageType === 'CAMPUS_GET_CLASSROOM_CODES' ? CLASSROOM_PAGE_URL : JWXT_HOME_URL;
-    const response = await runInBackgroundTab(fallbackUrl, { type: messageType });
+    const response = await runInBackgroundTab(fallbackUrl, message);
     if (!response?.ok) throw new Error(response?.error || '后台读取校园页面失败');
     return response;
   }
   if (!['jwxt.xjtu.edu.cn', 'ywtb.xjtu.edu.cn'].includes(url.hostname)) {
     const fallbackUrl = ['CAMPUS_GET_PORTAL', 'CAMPUS_GET_PERSONAL_DIGEST'].includes(messageType) ? YWTB_HOME_URL :
       messageType === 'CAMPUS_GET_CLASSROOMS' || messageType === 'CAMPUS_GET_CLASSROOM_CODES' ? CLASSROOM_PAGE_URL : JWXT_HOME_URL;
-    const response = await runInBackgroundTab(fallbackUrl, { type: messageType });
+    const response = await runInBackgroundTab(fallbackUrl, message);
     if (!response?.ok) throw new Error(response?.error || '后台读取校园页面失败');
+    return response;
+  }
+  if (messageType === 'CAMPUS_GET_SCHOOL_COURSES' && url.hostname !== 'jwxt.xjtu.edu.cn') {
+    const response = await runInBackgroundTab(JWXT_HOME_URL, message);
+    if (!response?.ok) throw new Error(response?.error || '后台读取全校课程失败');
     return response;
   }
   if (['CAMPUS_GET_CLASSROOM_CODES', 'CAMPUS_GET_CLASSROOMS'].includes(messageType)) {
@@ -421,14 +427,14 @@ async function sendToCampus(tabId, messageType = 'CAMPUS_GET_OVERVIEW') {
       url = parseTabUrl(tab);
     }
   }
-  const response = await chrome.tabs.sendMessage(tabId, { type: messageType });
+  const response = await chrome.tabs.sendMessage(tabId, message);
   if (!response?.ok) throw new Error(response?.error || '无法读取当前校园页面，请刷新后重试');
   return response;
 }
 
-async function sendToAttendance(tabId) {
+async function sendToAttendance(tabId, query = {}) {
   if (!tabId) {
-    const response = await runInBackgroundTab(ATTENDANCE_HOME_URL, { type: 'ATTENDANCE_GET_OVERVIEW' });
+    const response = await runInBackgroundTab(ATTENDANCE_HOME_URL, { type: 'ATTENDANCE_GET_OVERVIEW', query });
     if (!response?.ok) throw new Error(response?.error || '后台读取考勤失败');
     return response;
   }
@@ -437,7 +443,7 @@ async function sendToAttendance(tabId) {
   if (!['bk-kq.xjtu.edu.cn', 'yjs-kq.xjtu.edu.cn'].includes(url.hostname)) {
     throw new Error('请先打开本科或研究生考勤系统页面');
   }
-  const response = await chrome.tabs.sendMessage(tabId, { type: 'ATTENDANCE_GET_OVERVIEW' });
+  const response = await chrome.tabs.sendMessage(tabId, { type: 'ATTENDANCE_GET_OVERVIEW', query });
   if (!response?.ok) throw new Error(response?.error || '无法读取考勤页面，请刷新后重试');
   return response;
 }
@@ -1158,12 +1164,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return { ok: true, ...(await sendToCampus(message.tabId)) };
       case 'GET_CAMPUS_PORTAL':
         return { ok: true, ...(await sendToCampus(message.tabId, 'CAMPUS_GET_PORTAL')) };
+      case 'GET_SCHOOL_COURSES':
+        return { ok: true, ...(await sendToCampus(message.tabId, 'CAMPUS_GET_SCHOOL_COURSES', message.query || {})) };
       case 'GET_CLASSROOM_CODES':
         return { ok: true, ...(await sendToCampus(message.tabId, 'CAMPUS_GET_CLASSROOM_CODES')) };
       case 'GET_CLASSROOMS':
         return { ok: true, ...(await sendToCampus(message.tabId, 'CAMPUS_GET_CLASSROOMS')) };
       case 'GET_ATTENDANCE_OVERVIEW':
-        return { ok: true, ...(await sendToAttendance(message.tabId)) };
+        return { ok: true, ...(await sendToAttendance(message.tabId, message.query || {})) };
       case 'GET_LIBRARY_FLOOR':
         return { ok: true, ...(await sendToLibrary(message.tabId, message.floorCode)) };
       case 'GET_CARD_OVERVIEW':

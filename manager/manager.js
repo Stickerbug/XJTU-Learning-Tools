@@ -28,6 +28,7 @@ const PORTAL_SITES = [
   { category: '学习', name: '教务系统', description: '课表、成绩、考试和选课', url: 'https://jwxt.xjtu.edu.cn/' },
   { category: '学习', name: '我的课表', description: '教务系统当前学期课程安排', url: 'https://jwxt.xjtu.edu.cn/jwapp/sys/wdkb/modules/xskcb/xskcb.do' },
   { category: '学习', name: '成绩查询', description: '课程成绩和学分信息', url: 'https://jwxt.xjtu.edu.cn/jwapp/sys/cjcx/modules/cjcx/xscjcx.do' },
+  { category: '学习', name: '全校课程查询', description: '按学期、院系、校区和时间查找课程', url: 'https://jwxt.xjtu.edu.cn/jwapp/sys/kcbcx/*default/index.do' },
   { category: '学习', name: '考试安排', description: '考试时间和地点', url: 'https://jwxt.xjtu.edu.cn/jwapp/sys/studentWdksapApp/modules/wdksap/wdksap.do' },
   { category: '学习', name: '本科考勤', description: '课程考勤、缺勤和迟到记录', url: 'https://bk-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc' },
   { category: '学习', name: '研究生考勤', description: '课程考勤、缺勤和迟到记录', url: 'https://yjs-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc' },
@@ -62,6 +63,8 @@ let livePortalSites = [];
 let portalLoading = false;
 let campusData = null;
 let campusLoading = false;
+let schoolCourseData = null;
+let schoolCourseLoading = false;
 let attendanceData = null;
 let attendanceLoading = false;
 let attendanceCourseFilter = 'all';
@@ -2020,6 +2023,115 @@ async function loadCampus() {
   }
 }
 
+async function schoolCourseTab() {
+  const tabs = await chrome.tabs.query({});
+  return tabs.find(tab => tab.active && tab.url?.startsWith('https://jwxt.xjtu.edu.cn/')) ||
+    tabs.find(tab => tab.url?.startsWith('https://jwxt.xjtu.edu.cn/')) || null;
+}
+
+function renderSchoolCourseFilters(data) {
+  const term = $('#school-course-term');
+  const department = $('#school-course-department');
+  if (!term || !department) return;
+  const previousTerm = term.value;
+  term.replaceChildren();
+  for (const item of data?.terms || []) term.append(new Option(item.name || item.code, item.code));
+  term.value = (data?.term || data?.currentTerm || previousTerm || data?.terms?.[0]?.code || '');
+  department.replaceChildren(new Option('全部院系', ''));
+  for (const item of data?.departments || []) department.append(new Option(item.name, item.code));
+}
+
+function renderSchoolCourses() {
+  const stateElement = $('#school-course-state');
+  const summary = $('#school-course-summary');
+  const results = $('#school-course-results');
+  if (!stateElement || !summary || !results) return;
+  summary.replaceChildren();
+  results.replaceChildren();
+  if (schoolCourseLoading) {
+    stateElement.textContent = '正在读取全校课程目录…';
+    return;
+  }
+  if (!schoolCourseData) {
+    stateElement.textContent = '读取教务系统课程目录后显示结果。';
+    return;
+  }
+  renderSchoolCourseFilters(schoolCourseData);
+  const courses = Array.isArray(schoolCourseData.courses) ? schoolCourseData.courses : [];
+  const cards = [['结果数', schoolCourseData.total ?? courses.length], ['当前页', schoolCourseData.page || 1], ['学期', schoolCourseData.term || schoolCourseData.currentTerm || '—']];
+  for (const [label, value] of cards) {
+    const card = document.createElement('div');
+    card.className = 'summary-card';
+    const number = document.createElement('strong');
+    number.textContent = String(value);
+    const title = document.createElement('span');
+    title.textContent = label;
+    card.append(number, title);
+    summary.append(card);
+  }
+  summary.hidden = false;
+  stateElement.textContent = `共 ${schoolCourseData.total ?? courses.length} 门课程${schoolCourseData.pageSize ? ` · 每页 ${schoolCourseData.pageSize} 条` : ''}`;
+  if (!courses.length) {
+    results.append(campusEmpty('没有符合条件的课程'));
+    return;
+  }
+  for (const course of courses) {
+    const card = document.createElement('article');
+    card.className = 'school-course-card';
+    const title = document.createElement('div');
+    title.className = 'school-course-title';
+    title.textContent = course.name || '未命名课程';
+    const code = document.createElement('span');
+    code.className = 'muted';
+    code.textContent = [course.code, course.classCode].filter(Boolean).join(' · ');
+    title.append(code);
+    const meta = document.createElement('div');
+    meta.className = 'school-course-meta';
+    meta.textContent = [course.teachers, course.department, course.campus, course.credit ? `${course.credit} 学分` : '', course.timePlace].filter(Boolean).join(' · ');
+    const capacity = document.createElement('span');
+    capacity.className = 'school-course-capacity';
+    capacity.textContent = course.capacity || course.selected ? `容量 ${course.capacity || '—'} · 已选 ${course.selected || '—'}` : '';
+    card.append(title, meta);
+    if (capacity.textContent) card.append(capacity);
+    results.append(card);
+  }
+}
+
+async function loadSchoolCourses(query = {}) {
+  schoolCourseLoading = true;
+  renderSchoolCourses();
+  try {
+    const tab = await schoolCourseTab();
+    const response = await call({ type: 'GET_SCHOOL_COURSES', tabId: tab?.id || 0, query });
+    schoolCourseData = response.data;
+    renderSchoolCourses();
+    if (!query.metaOnly) showNotice(`已找到 ${schoolCourseData.total ?? schoolCourseData.courses?.length ?? 0} 门课程`, 'success');
+  } catch (error) {
+    schoolCourseData = null;
+    showNotice(error.message);
+    renderSchoolCourses();
+  } finally {
+    schoolCourseLoading = false;
+    renderSchoolCourses();
+  }
+}
+
+function schoolCourseQuery() {
+  const sections = String($('#school-course-sections').value || '').match(/(\d+)\s*[-~至]\s*(\d+)/);
+  return {
+    term: $('#school-course-term').value,
+    courseName: $('#school-course-name').value.trim(),
+    department: $('#school-course-department').value,
+    campus: $('#school-course-campus').value,
+    elective: $('#school-course-elective').value,
+    weekday: $('#school-course-weekday').value,
+    startSection: sections?.[1] || '',
+    endSection: sections?.[2] || '',
+    page: 1,
+    pageSize: 30
+  };
+}
+
 const ATTENDANCE_STATUS_NAMES = {
   NORMAL: '正常', ABSENT: '缺勤', ABSENCE: '缺勤', LATE: '迟到', LEAVE: '请假', PENDING: '待考勤', NOT_REQUIRED: '不考勤'
 };
@@ -2040,8 +2152,9 @@ function renderAttendance() {
   const stateElement = $('#attendance-state');
   const summary = $('#attendance-summary');
   const recordsElement = $('#attendance-records');
+  const termSelect = $('#attendance-term');
   const courseSelect = $('#attendance-course-filter');
-  if (!stateElement || !summary || !recordsElement || !courseSelect) return;
+  if (!stateElement || !summary || !recordsElement || !courseSelect || !termSelect) return;
   summary.replaceChildren();
   recordsElement.replaceChildren();
   if (attendanceLoading) {
@@ -2053,6 +2166,15 @@ function renderAttendance() {
     recordsElement.innerHTML = '<div class="attendance-empty">暂无考勤数据</div>';
     return;
   }
+  const previousTerm = termSelect.value;
+  termSelect.replaceChildren();
+  for (const semester of attendanceData.semesters || []) {
+    const option = document.createElement('option');
+    option.value = semester.id;
+    option.textContent = semester.name || semester.id;
+    termSelect.append(option);
+  }
+  termSelect.value = attendanceData.currentSemester?.id || previousTerm || attendanceData.semesters?.[0]?.id || '';
   const records = Array.isArray(attendanceData.records) ? attendanceData.records : [];
   const allCourses = [...new Set(records.map(row => row.course).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
   const previousCourse = attendanceCourseFilter;
@@ -2137,7 +2259,7 @@ async function loadAttendance() {
   renderAttendance();
   try {
     const tab = await attendanceTab();
-    const response = await call({ type: 'GET_ATTENDANCE_OVERVIEW', tabId: tab?.id || 0 });
+    const response = await call({ type: 'GET_ATTENDANCE_OVERVIEW', tabId: tab?.id || 0, query: { semesterId: $('#attendance-term')?.value || '' } });
     attendanceData = response.data;
     showNotice('考勤数据已更新', 'success');
   } catch (error) {
@@ -2185,6 +2307,8 @@ $('#auth-cancel').addEventListener('click', cancelAuth);
 $('#task-search').addEventListener('input', renderTasks);
 $('#task-state-filter').addEventListener('change', renderTasks);
 $('#campus-refresh').addEventListener('click', loadCampus);
+$('#school-course-query').addEventListener('click', () => loadSchoolCourses(schoolCourseQuery()));
+$('#attendance-term').addEventListener('change', loadAttendance);
 $('#campus-grade-term').addEventListener('change', event => {
   gradeTermFilter = event.target.value;
   renderCampus();
@@ -2252,6 +2376,9 @@ $('#classroom-status').addEventListener('change', renderClassrooms);
 document.querySelector('[data-view="classrooms"]').addEventListener('click', () => {
   if (!classroomCodes.campuses.length) loadClassroomCodes();
 });
+document.querySelector('[data-view="school-courses"]').addEventListener('click', () => {
+  if (!schoolCourseData) loadSchoolCourses({ metaOnly: true });
+});
 $('#zyxf-search-button').addEventListener('click', runZyxfSearch);
 $('#zyxf-search').addEventListener('keydown', event => {
   if (event.key === 'Enter') runZyxfSearch();
@@ -2318,8 +2445,9 @@ const initialParams = new URLSearchParams(location.search);
 const initialView = initialParams.get('view');
 const initialDisplay = initialParams.get('display');
 if (['activities', 'sources', 'calendar'].includes(initialDisplay)) resourceView = initialDisplay;
-switchView(['resources', 'courses', 'campus', 'attendance', 'library', 'card', 'inbox', 'personal', 'classrooms', 'portal', 'zyxf', 'tasks', 'login', 'settings'].includes(initialView) ? initialView : 'resources');
+switchView(['resources', 'courses', 'campus', 'school-courses', 'attendance', 'library', 'card', 'inbox', 'personal', 'classrooms', 'portal', 'zyxf', 'tasks', 'login', 'settings'].includes(initialView) ? initialView : 'resources');
 renderCampus();
+renderSchoolCourses();
 renderAttendance();
 renderLibrary();
 renderCard();
@@ -2327,4 +2455,5 @@ renderInbox();
 renderPersonal();
 renderClassrooms();
 if (initialView === 'classrooms') loadClassroomCodes();
+if (initialView === 'school-courses') loadSchoolCourses({ metaOnly: true });
 loadState().catch(error => showNotice(error.message));
