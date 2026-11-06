@@ -14,14 +14,12 @@
     </div>
     <nav aria-label="主要功能">
       <button class="nav-button active" data-view="resources" type="button">批量下载</button>
+      <button class="nav-button" data-view="homework" type="button">未完成作业</button>
       <button class="nav-button" data-view="courses" type="button">课程</button>
       <button class="nav-button" data-view="campus" type="button">校园数据</button>
       <button class="nav-button" data-view="school-courses" type="button">全校课程</button>
-      <button class="nav-button" data-view="attendance" type="button">考勤摘要</button>
       <button class="nav-button" data-view="library" type="button">图书馆座位</button>
-      <button class="nav-button" data-view="card" type="button">校园卡</button>
       <button class="nav-button" data-view="inbox" type="button">事务消息</button>
-      <button class="nav-button" data-view="personal" type="button">个人摘要</button>
       <button class="nav-button" data-view="classrooms" type="button">空教室</button>
       <button class="nav-button" data-view="portal" type="button">校园门户</button>
       <button class="nav-button" data-view="zyxf" type="button">学辅资料</button>
@@ -49,6 +47,7 @@
             </select>
           </label>
           <button id="scan-courses" class="button secondary" type="button">重新扫描</button>
+          <button class="button secondary" data-open-login="lms" type="button">一键登录</button>
           <button id="export-catalog" class="button secondary" type="button">导出清单</button>
           <button id="download-selected" class="button primary queue-selected" type="button">下载所选文件</button>
         </div>
@@ -86,6 +85,25 @@
       <div id="catalog" class="catalog"></div>
     </section>
 
+    <section id="view-homework" class="view" hidden>
+      <div class="toolbar">
+        <div>
+          <h1>未完成作业</h1>
+          <p class="muted">汇总思源学堂 2.0 / 思源学习空间当前课程中尚未提交的作业，展开查看要求和附件</p>
+        </div>
+        <div class="toolbar-actions">
+          <a class="button secondary" href="https://lms.xjtu.edu.cn/" target="_blank" rel="noreferrer">打开思源学堂 2.0</a>
+          <a class="button secondary" href="https://ispace.xjtu.edu.cn/" target="_blank" rel="noreferrer">打开思源学习空间</a>
+          <button class="button secondary" data-open-login="lms" type="button">登录学堂</button>
+          <button class="button secondary" data-open-login="ispace" type="button">登录学习空间</button>
+          <button id="homework-refresh" class="button primary" type="button">刷新未完成作业</button>
+        </div>
+      </div>
+      <div id="homework-state" class="campus-state">点击刷新后读取当前课程和未完成作业。</div>
+      <div id="homework-summary" class="classroom-summary" hidden></div>
+      <div id="homework-results" class="homework-results"></div>
+    </section>
+
     <section id="view-courses" class="view" hidden>
       <div class="search-bar course-search-bar">
         <input id="course-search" type="search" placeholder="搜索课程名称、课程代码或学期" aria-label="搜索课程">
@@ -116,6 +134,7 @@
         <div class="toolbar-actions">
           <a class="button secondary" href="https://jwxt.xjtu.edu.cn/" target="_blank" rel="noreferrer">打开教务系统</a>
           <a class="button secondary" href="https://ywtb.xjtu.edu.cn/" target="_blank" rel="noreferrer">打开一网通办</a>
+          <button class="button secondary" data-open-login="jwxt" type="button">一键登录</button>
           <button id="campus-refresh" class="button primary" type="button">读取当前页面</button>
         </div>
       </div>
@@ -157,7 +176,6 @@
         </div>
       </section>
       <div id="campus-state" class="campus-state">点击读取即可后台复用已登录会话；首次使用请先完成一次统一认证。</div>
-      <div id="campus-profile" class="campus-profile" hidden></div>
       <div class="campus-grid">
         <section class="campus-panel">
           <div class="campus-panel-head campus-schedule-head">
@@ -200,6 +218,7 @@
         <div class="toolbar-actions">
           <a class="button secondary" href="https://webvpn.xjtu.edu.cn/http-8086/77726476706e69737468656265737421e2f00f902e322648741c9ce29d51367bae38/seat/" target="_blank" rel="noreferrer">打开座位页（WebVPN）</a>
           <a class="text-button" href="http://rg.lib.xjtu.edu.cn:8086/seat/" target="_blank" rel="noreferrer">校内直连</a>
+          <button class="button secondary" data-open-login="ywtb" type="button">一键登录</button>
           <button id="library-refresh" class="button primary" type="button">读取楼层空位</button>
         </div>
       </div>
@@ -212,22 +231,6 @@
       <div id="library-results" class="library-results"></div>
     </section>
 
-    <section id="view-card" class="view" hidden>
-      <div class="toolbar">
-        <div>
-          <h1>校园卡</h1>
-          <p class="muted">读取余额、未结算金额和近 30 天消费流水</p>
-        </div>
-        <div class="toolbar-actions">
-          <a class="button secondary" href="https://ncard.xjtu.edu.cn/" target="_blank" rel="noreferrer">打开校园卡</a>
-          <button id="card-refresh" class="button primary" type="button">读取校园卡</button>
-        </div>
-      </div>
-      <div id="card-state" class="campus-state">点击读取即可后台复用已登录会话；首次使用请先完成一次校园卡认证。</div>
-      <div id="card-summary" class="classroom-summary card-summary" hidden></div>
-      <div id="card-transactions" class="card-transactions"></div>
-    </section>
-
     <section id="view-inbox" class="view" hidden>
       <div class="toolbar">
         <div>
@@ -236,6 +239,7 @@
         </div>
         <div class="toolbar-actions">
           <a class="button secondary" href="https://ywtb.xjtu.edu.cn/" target="_blank" rel="noreferrer">打开一网通办</a>
+          <button class="button secondary" data-open-login="ywtb" type="button">一键登录</button>
           <button id="inbox-refresh" class="button primary" type="button">读取事务消息</button>
         </div>
       </div>
@@ -247,13 +251,6 @@
       </div>
     </section>
 
-    <section id="view-personal" class="view" hidden>
-      <div class="toolbar"><div><h1>个人摘要</h1><p class="muted">借阅到期、未读邮箱和校园网络要求</p></div><div class="toolbar-actions"><a class="button secondary" href="https://ywtb.xjtu.edu.cn/" target="_blank" rel="noreferrer">打开一网通办</a><button id="personal-refresh" class="button primary" type="button">读取个人摘要</button></div></div>
-      <div id="personal-state" class="campus-state">点击读取即可后台复用已登录会话；首次使用请先完成一次一网通办认证。</div>
-      <div id="personal-summary" class="classroom-summary personal-summary" hidden></div>
-      <div class="personal-grid"><section class="campus-panel"><div class="campus-panel-head"><h2>图书借阅</h2></div><div id="personal-books" class="inbox-list"></div></section><section class="campus-panel"><div class="campus-panel-head"><h2>网络要求</h2></div><div id="personal-network" class="personal-network"></div></section></div>
-    </section>
-
     <section id="view-school-courses" class="view" hidden>
       <div class="toolbar">
         <div>
@@ -262,6 +259,7 @@
         </div>
         <div class="toolbar-actions">
           <a class="button secondary" href="https://jwxt.xjtu.edu.cn/jwapp/sys/kcbcx/*default/index.do" target="_blank" rel="noreferrer">打开教务课程页</a>
+          <button class="button secondary" data-open-login="jwxt" type="button">一键登录</button>
           <button id="school-course-query" class="button primary" type="button">查询课程</button>
         </div>
       </div>
@@ -279,35 +277,6 @@
       <div id="school-course-results" class="school-course-results"></div>
     </section>
 
-    <section id="view-attendance" class="view" hidden>
-      <div class="toolbar">
-        <div>
-          <h1>考勤摘要</h1>
-          <p class="muted">读取当前登录考勤系统的课程考勤结果，快速定位缺勤和迟到记录</p>
-        </div>
-        <div class="toolbar-actions">
-          <a class="button secondary" href="https://bk-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc" target="_blank" rel="noreferrer">打开本科考勤</a>
-          <a class="button secondary" href="https://yjs-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc" target="_blank" rel="noreferrer">打开研究生考勤</a>
-          <button id="attendance-refresh" class="button primary" type="button">读取考勤</button>
-        </div>
-      </div>
-      <div id="attendance-state" class="campus-state">点击读取即可后台复用已登录会话；首次使用请先完成一次统一认证。</div>
-      <div id="attendance-summary" class="classroom-summary attendance-summary" aria-label="考勤统计"></div>
-      <div class="attendance-filters">
-        <label>学期<select id="attendance-term"><option value="">当前学期</option></select></label>
-        <label>课程<select id="attendance-course-filter"><option value="all">全部课程</option></select></label>
-        <label>状态<select id="attendance-status-filter">
-          <option value="all">全部状态</option>
-          <option value="ABSENT">缺勤</option>
-          <option value="LATE">迟到</option>
-          <option value="LEAVE">请假</option>
-          <option value="PENDING">待考勤</option>
-          <option value="NORMAL">正常</option>
-        </select></label>
-      </div>
-      <div id="attendance-records" class="attendance-records"></div>
-    </section>
-
     <section id="view-classrooms" class="view" hidden>
       <div class="toolbar">
         <div>
@@ -316,6 +285,7 @@
         </div>
         <div class="toolbar-actions">
           <a class="button secondary" href="https://jwxt.xjtu.edu.cn/jwapp/sys/kxjas/*default/index.do#/kxjscx" target="_blank" rel="noreferrer">打开空教室页</a>
+          <button class="button secondary" data-open-login="jwxt" type="button">一键登录</button>
           <button id="classroom-load-codes" class="button secondary" type="button">刷新校区和楼栋</button>
           <button id="classroom-query" class="button primary" type="button">查询空教室</button>
         </div>
@@ -408,7 +378,7 @@
       <div class="toolbar">
         <div>
           <h1>校园统一登录</h1>
-          <p class="muted">登录一次后，教务、考勤、一网通办和图书馆后台读取会复用浏览器会话。</p>
+          <p class="muted">登录一次后，各校园服务会复用浏览器会话。</p>
         </div>
         <div class="toolbar-actions">
           <button id="auth-open-tab" class="button secondary" type="button" hidden>打开认证页</button>
@@ -419,7 +389,7 @@
         <div class="login-form">
           <label>学号<input id="auth-username" inputmode="numeric" autocomplete="username" maxlength="64" placeholder="学号或统一认证账号"></label>
           <label>密码<input id="auth-password" type="password" autocomplete="current-password" maxlength="128" placeholder="输入后不会回显"></label>
-          <label>目标系统<select id="auth-target"><option value="jwxt">教务系统</option><option value="ywtb">一网通办</option></select></label>
+          <label>目标系统<select id="auth-target"><option value="jwxt">教务系统</option><option value="ywtb">一网通办</option><option value="lms">思源学堂 2.0</option><option value="ispace">思源学习空间</option></select></label>
           <label class="check-row"><input id="auth-remember" type="checkbox">保存密码（加密）</label>
           <button id="auth-start" class="button primary" type="button">一键登录</button>
           <button id="auth-clear-saved" class="button secondary small" type="button" hidden>清除已保存密码</button>
@@ -451,6 +421,7 @@
         <h2>官方服务</h2>
         <div class="link-list">
           <a href="https://lms.xjtu.edu.cn/" target="_blank" rel="noreferrer">思源学堂</a>
+          <a href="https://ispace.xjtu.edu.cn/" target="_blank" rel="noreferrer">思源学习空间</a>
           <a href="https://zyxf.top" target="_blank" rel="noreferrer">仲英学辅</a>
           <a href="https://xkfw.xjtu.edu.cn" target="_blank" rel="noreferrer">选课服务</a>
           <a href="https://ywtb.xjtu.edu.cn" target="_blank" rel="noreferrer">一网通办</a>

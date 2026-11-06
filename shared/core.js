@@ -93,6 +93,10 @@ function walkStrings(value, visit) {
   if (value && typeof value === 'object') Object.values(value).forEach(item => walkStrings(item, visit));
 }
 
+function redactTemporaryUrlParameters(value) {
+  return String(value || '').replace(/([?&](?:token|previewToken|X-Amz-Signature|X-Amz-Credential)=)[^&\s"'<>]+/gi, '$1[已隐藏]');
+}
+
 export function findEmbeddedMedia(activity) {
   const found = [];
   const seen = new Set();
@@ -115,7 +119,7 @@ export function findRichContentUploads(activity) {
   const found = [];
   const seen = new Set();
   walkStrings(activity?.data || activity?.content || {}, text => {
-    const matches = text.match(/(?:https?:\/\/lms\.xjtu\.edu\.cn(?::443)?)?\/api\/uploads\/(\d+)\/in-rich-content(?:\?[^\s"'<>]*)?/gi) || [];
+    const matches = text.match(/(?:https?:\/\/(?:lms|ispace)\.xjtu\.edu\.cn(?::443)?)?\/api\/uploads\/(\d+)\/in-rich-content(?:\?[^\s"'<>]*)?/gi) || [];
     for (const raw of matches) {
       const id = Number(raw.match(/\/api\/uploads\/(\d+)\//)?.[1]);
       if (!id || seen.has(id)) continue;
@@ -130,6 +134,7 @@ function baseResource(course, activity, kind, source) {
   return {
     courseId: course.id,
     courseName: course.name,
+    baseUrl: course.baseUrl || null,
     activityId: activity.id,
     activityTitle: activity.title,
     activityType: activity.type || null,
@@ -365,13 +370,25 @@ export function summarizeCourse(course, activities, activityDetails = {}, course
   }));
   const homework = published
     .filter(item => item.type === 'homework')
-    .map(item => ({
-      activityId: item.id,
-      courseId: course.id,
-      courseName: course.name,
-      title: item.title,
-      dueAt: item.deadline || item.end_time
-    }));
+    .map(item => {
+      const detail = activityDetails[item.id]?.activity || item;
+      const submissions = activityDetails[item.id]?.submissions;
+      const submitCount = Number(detail.user_submit_count || detail.submit_times || detail.data?.submit_times || 0);
+      const hasSubmissionList = Array.isArray(submissions?.list) && submissions.list.length > 0;
+      return {
+        activityId: item.id,
+        courseId: course.id,
+        courseName: course.name,
+        title: item.title,
+        dueAt: detail.deadline || item.deadline || detail.end_time || item.end_time,
+        createdAt: detail.created_at || item.created_at || null,
+        updatedAt: detail.updated_at || item.updated_at || null,
+        description: redactTemporaryUrlParameters(detail.description || detail.data?.description || detail.data?.content || ''),
+        submitted: submitCount > 0 || hasSubmissionList,
+        submitCount,
+        uploads: resources.filter(resource => resource.activityId === item.id && resource.source === RESOURCE_SOURCES.homework)
+      };
+    });
   return {
     id: course.id,
     name: course.name,
@@ -417,6 +434,7 @@ export function assertDownloadUrl(value) {
   const url = new URL(value);
   const allowed = new Set([
     'lms.xjtu.edu.cn',
+    'ispace.xjtu.edu.cn',
     'review-class.xjtu.edu.cn',
     'media.xjtu.edu.cn',
     'rms-v5.xjtu.edu.cn',

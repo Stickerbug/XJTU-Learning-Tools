@@ -169,8 +169,6 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .today-quick-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .today-quick-actions .button { min-height: 30px; padding: 5px 11px; font-size: 13px; }
 .campus-state { padding: 14px 20px; color: var(--muted); border-bottom: 1px solid var(--line); background: #fafafa; }
-.campus-profile { display: flex; align-items: baseline; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
-.campus-profile span { color: var(--muted); font-size: 13px; }
 .campus-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 18px 20px; background: #f8f8f8; }
 .campus-panel { min-width: 0; background: #fff; border: 1px solid var(--line); }
 .campus-panel-wide { grid-column: 1 / -1; }
@@ -239,10 +237,6 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .classroom-filters input, .classroom-filters select { min-width: 112px; }
 .classroom-filters input[type="number"] { width: 92px; min-width: 92px; }
 .classroom-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: #fafafa; }
-.attendance-summary { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.attendance-filters { display: flex; flex-wrap: wrap; gap: 10px 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: #fafafa; }
-.attendance-filters label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
-.attendance-filters select { min-width: 150px; }
 .school-course-filters { display: flex; flex-wrap: wrap; gap: 10px 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: #fafafa; }
 .school-course-filters label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
 .school-course-keyword { flex: 1 1 220px; }
@@ -252,19 +246,27 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .school-course-title { display: flex; flex-direction: column; gap: 4px; color: var(--ink); font-weight: 700; line-height: 1.45; }
 .school-course-meta { margin-top: 9px; color: var(--muted); font-size: 12px; line-height: 1.55; }
 .school-course-capacity { display: block; margin-top: 8px; color: var(--blue); font-size: 12px; }
-.attendance-records { background: #fff; }
-.attendance-row { display: grid; grid-template-columns: 110px minmax(180px, 1fr) 120px minmax(150px, 1fr) 90px; gap: 12px; align-items: center; min-height: 54px; padding: 10px 20px; border-bottom: 1px solid #ededed; }
-.attendance-row-head { color: var(--muted); background: #f7f7f7; font-size: 13px; }
-.attendance-row > span { min-width: 0; overflow-wrap: anywhere; }
-.attendance-course { font-weight: 600; }
-.attendance-meta { color: var(--muted); font-size: 13px; }
-.attendance-status { font-weight: 600; }
-.attendance-status-ABSENT { color: var(--red); }
-.attendance-status-LATE { color: #9a6b00; }
-.attendance-status-LEAVE { color: #7a4aa8; }
-.attendance-status-PENDING { color: #8a6a00; }
-.attendance-status-NORMAL { color: #18733a; }
-.attendance-empty { padding: 36px 20px; color: var(--muted); text-align: center; }
+.homework-results { display: grid; gap: 12px; padding: 18px 20px; background: #f8f8f8; }
+.homework-card { background: #fff; border: 1px solid var(--line); }
+.homework-card summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px; cursor: pointer; list-style: none; }
+.homework-card summary::-webkit-details-marker { display: none; }
+.homework-card summary:hover { background: #f7fbfe; }
+.homework-heading { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.homework-heading strong { overflow-wrap: anywhere; }
+.homework-heading span { color: var(--muted); font-size: 12px; }
+.homework-due { flex: none; color: var(--muted); font-size: 12px; }
+.homework-due.is-soon { color: #9a6b00; font-weight: 600; }
+.homework-due.is-overdue { color: var(--red); font-weight: 600; }
+.homework-body { padding: 0 16px 16px; border-top: 1px solid var(--line); }
+.homework-body h3 { margin: 14px 0 7px; font-size: 13px; }
+.homework-description { margin: 0; padding: 10px 12px; color: var(--ink); background: #f7f7f7; white-space: pre-wrap; line-height: 1.6; }
+.homework-description img { display: block; max-width: 100%; max-height: 420px; margin: 8px 0; object-fit: contain; }
+.homework-files-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.homework-files-head h3 { margin-bottom: 0; }
+.homework-file-list { border-top: 1px solid var(--line); }
+.homework-file-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid #ededed; }
+.homework-file-row span { min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+.homework-open { display: inline-block; margin-top: 12px; }
 .library-filters { display: flex; flex-wrap: wrap; gap: 10px 14px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: #fafafa; }
 .library-filters label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; }
 .library-filters select { min-width: 170px; }
@@ -276,17 +278,6 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .library-area-head span { color: var(--muted); font-size: 13px; }
 .library-seat-list { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 16px; }
 .library-seat { min-width: 48px; padding: 5px 7px; color: #18733a; background: #eaf7ef; border: 1px solid #ccebd6; text-align: center; font-size: 13px; }
-.card-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.card-transactions { padding: 18px 20px; background: #f8f8f8; }
-.card-transaction-list { background: #fff; border: 1px solid var(--line); }
-.card-transaction-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-bottom: 1px solid #ededed; }
-.card-transaction-row:last-child { border-bottom: 0; }
-.card-transaction-row main { min-width: 0; }
-.card-transaction-row strong, .card-transaction-row span { display: block; overflow-wrap: anywhere; }
-.card-transaction-row span { margin-top: 4px; color: var(--muted); font-size: 13px; }
-.card-transaction-row b { flex: none; font-variant-numeric: tabular-nums; }
-.card-transaction-row b.is-income { color: #18733a; }
-.card-transaction-row b.is-expense { color: var(--red); }
 .inbox-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .inbox-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 18px 20px; background: #f8f8f8; }
 .inbox-list { max-height: 520px; overflow: auto; }
@@ -296,11 +287,6 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .inbox-item a { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--blue); text-decoration: none; }
 .inbox-item.is-overdue { background: #fff8f0; }
 .inbox-item.is-overdue strong { color: var(--red); }
-.personal-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.personal-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); gap: 14px; padding: 18px 20px; background: #f8f8f8; }
-.personal-network { padding: 8px 16px; }
-.personal-network-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid #ededed; }
-.personal-network-row span { color: var(--muted); }
 .classroom-results { padding: 18px 20px; background: #f8f8f8; }
 .classroom-building-group { margin-bottom: 14px; background: #fff; border: 1px solid var(--line); }
 .classroom-building-group:last-child { margin-bottom: 0; }
@@ -381,14 +367,11 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
   .today-center-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grade-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .classroom-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .card-summary, .inbox-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .personal-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .personal-grid { grid-template-columns: 1fr; padding: 14px; }
+  .inbox-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .inbox-grid { grid-template-columns: 1fr; padding: 14px; }
-  .attendance-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .school-course-results { grid-template-columns: 1fr; padding: 14px; }
+  .homework-results { padding: 14px; }
   .login-form { grid-template-columns: 1fr; }
-  .attendance-row { grid-template-columns: 96px minmax(130px, 1fr) 100px minmax(120px, 1fr) 80px; gap: 8px; padding-inline: 14px; }
   .classroom-room-list { grid-template-columns: 1fr; }
   .classroom-room:nth-child(odd) { border-right: 0; }
 }
@@ -405,27 +388,17 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
   .login-panel { padding: 18px 14px 22px; }
   #portal-list { grid-template-columns: 1fr; }
   .grade-summary { grid-template-columns: 1fr; }
-  .card-summary, .inbox-summary { grid-template-columns: 1fr; }
-  .personal-summary { grid-template-columns: 1fr; }
-  .attendance-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inbox-summary { grid-template-columns: 1fr; }
   .library-filters { flex-direction: column; }
   .library-filters label, .library-filters input, .library-filters select { width: 100%; }
-  .library-results, .card-transactions { padding: 14px; }
-  .card-transaction-row { align-items: flex-start; padding: 11px 14px; }
+  .library-results { padding: 14px; }
   .campus-grade-head { align-items: flex-start; flex-direction: column; }
   .campus-grade-head select { width: 100%; }
   .classroom-filters { flex-direction: column; }
-  .attendance-filters { flex-direction: column; }
-  .attendance-filters label, .attendance-filters select { width: 100%; }
   .school-course-filters { flex-direction: column; }
   .school-course-filters label, .school-course-filters input, .school-course-filters select { width: 100%; }
-  .attendance-row { grid-template-columns: 1fr auto; gap: 5px 10px; padding: 11px 14px; }
-  .attendance-row-head { display: none; }
-  .attendance-row > span:nth-child(1) { color: var(--muted); font-size: 12px; }
-  .attendance-row > span:nth-child(2) { grid-column: 1 / -1; grid-row: 1; }
-  .attendance-row > span:nth-child(3) { grid-column: 1; grid-row: 2; }
-  .attendance-row > span:nth-child(4) { grid-column: 1 / -1; grid-row: 3; }
-  .attendance-row > span:nth-child(5) { grid-column: 2; grid-row: 2; text-align: right; }
+  .homework-card summary { align-items: flex-start; flex-direction: column; }
+  .homework-files-head { align-items: flex-start; flex-direction: column; }
   .today-center { padding: 14px; }
   .today-center-head { align-items: flex-start; flex-direction: column; gap: 4px; }
   .today-center-grid { grid-template-columns: 1fr; }

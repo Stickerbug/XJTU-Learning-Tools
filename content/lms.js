@@ -5,6 +5,9 @@
     .replace(/([?&](?:token|previewToken|X-Amz-Signature|X-Amz-Credential)=)[^&\s]+/gi, '$1[已隐藏]')
     .slice(0, 300);
 
+  const redactTemporaryUrls = value => String(value || '')
+    .replace(/([?&](?:token|previewToken|X-Amz-Signature|X-Amz-Credential)=)[^&\s"'<>]+/gi, '$1[已隐藏]');
+
   async function api(path, options = {}) {
     const response = await fetch(path, { ...options, credentials: 'include' });
     if (response.status === 401) throw new Error('登录状态已失效，请重新登录思源学堂');
@@ -22,6 +25,14 @@
       activityId: activity ? Number(activity[1]) : null,
       url: location.href
     };
+  }
+
+  function platform() {
+    return location.hostname === 'ispace.xjtu.edu.cn' ? 'ispace' : 'lms';
+  }
+
+  function platformLabel() {
+    return platform() === 'ispace' ? '思源学习空间' : '思源学堂 2.0';
   }
 
   async function activityContext(courseId, activityId) {
@@ -155,6 +166,63 @@
     return { courses: results, todos };
   }
 
+  async function homeworkOverview() {
+    const payload = await myCourses();
+    const courses = payload.courses || [];
+    const results = await mapLimit(courses, SCAN_COURSE_CONCURRENCY, async course => {
+      const activitiesPayload = await api(`/api/courses/${course.id}/activities?sub_course_id=0`);
+      const briefs = (activitiesPayload.activities || []).filter(activity => activity.type === 'homework' && activity.published !== false);
+      const homework = await mapLimit(briefs, SCAN_ACTIVITY_CONCURRENCY, async brief => {
+        const detail = await api(`/api/activities/${brief.id}?sub_course_id=0`);
+        const submittedCount = Number(detail.user_submit_count || detail.submit_times || detail.data?.submit_times || 0);
+        return {
+          activityId: detail.id || brief.id,
+          courseId: course.id,
+          courseName: course.name,
+          courseCode: course.course_code || '',
+          title: detail.title || brief.title,
+          deadline: detail.deadline || brief.deadline || detail.end_time || brief.end_time || null,
+          createdAt: detail.created_at || brief.created_at || null,
+          updatedAt: detail.updated_at || brief.updated_at || null,
+          description: redactTemporaryUrls(detail.data?.description || detail.description || detail.data?.content || ''),
+          submitted: submittedCount > 0,
+          submitCount: submittedCount,
+          submitByGroup: Boolean(detail.submit_by_group),
+          platform: platform(),
+          platformLabel: platformLabel(),
+          baseUrl: location.origin,
+          activityUrl: `${location.origin}/course/${course.id}/learning-activity#/${detail.id || brief.id}`,
+          uploads: (detail.uploads || []).map(upload => ({
+            kind: 'upload',
+            courseId: course.id,
+            courseName: course.name,
+            activityId: detail.id || brief.id,
+            activityTitle: detail.title || brief.title,
+            activityType: 'homework',
+            name: upload.name || `作业附件_${upload.id}`,
+            uploadId: upload.id,
+            referenceId: upload.reference_id || null,
+            fileKey: upload.key || null,
+            size: upload.size || 0,
+            source: '作业附件',
+            platform: platform(),
+            platformLabel: platformLabel(),
+            baseUrl: location.origin
+          }))
+        };
+      });
+      return homework;
+    });
+    return {
+      homework: results.flat().filter(item => !item.submitted),
+      fetchedAt: new Date().toISOString(),
+      courseCount: courses.length,
+      platform: platform(),
+      platformLabel: platformLabel(),
+      baseUrl: location.origin
+    };
+  }
+
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (!message?.type?.startsWith('LMS_')) return false;
     (async () => {
@@ -179,6 +247,8 @@
           return { ok: true, data: await api(`/api/submissions/${message.submissionId}/marked_attachments`) };
         case 'LMS_SCAN_COURSES':
           return { ok: true, ...(await scanCourses()) };
+        case 'LMS_GET_HOMEWORKS':
+          return { ok: true, ...(await homeworkOverview()) };
         default:
           throw new Error('不支持的页面请求');
       }

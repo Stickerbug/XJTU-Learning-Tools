@@ -71,6 +71,7 @@ test('课程清单只保留回放、资料和作业元数据', () => {
 
 test('仅允许学校 HTTPS 下载地址', () => {
   assert.equal(assertDownloadUrl('https://media.xjtu.edu.cn/download/file/a?token=x'), 'https://media.xjtu.edu.cn/download/file/a?token=x');
+  assert.equal(assertDownloadUrl('https://ispace.xjtu.edu.cn/api/uploads/88/blob'), 'https://ispace.xjtu.edu.cn/api/uploads/88/blob');
   assert.throws(() => assertDownloadUrl('https://example.com/a.mp4'));
   assert.throws(() => assertDownloadUrl('http://media.xjtu.edu.cn/a.pdf'));
 });

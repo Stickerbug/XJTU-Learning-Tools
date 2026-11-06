@@ -56,19 +56,30 @@ function saveTasksSoon() {
 async function sendToLms(tabId, message) {
   if (!tabId) throw new Error('请先打开思源学堂课程页面');
   const response = await chrome.tabs.sendMessage(tabId, message);
-  if (!response?.ok) throw new Error(response?.error || '无法读取思源学堂页面，请刷新后重试');
+  if (!response?.ok) throw new Error(response?.error || '无法读取学习平台页面，请刷新后重试');
   return response;
+}
+
+async function getLmsHomeworks(tabId, platform = 'lms') {
+  if (!tabId) {
+    const url = platform === 'ispace' ? 'https://ispace.xjtu.edu.cn/user/index#/' : 'https://lms.xjtu.edu.cn/user/index#/';
+    const response = await runInBackgroundTab(url, { type: 'LMS_GET_HOMEWORKS' });
+    if (!response?.ok) throw new Error(response?.error || `后台读取${platform === 'ispace' ? '思源学习空间' : '思源学堂'}作业失败`);
+    return response;
+  }
+  return sendToLms(tabId, { type: 'LMS_GET_HOMEWORKS' });
 }
 
 const CLASSROOM_PAGE_URL = 'https://jwxt.xjtu.edu.cn/jwapp/sys/kxjas/*default/index.do#/kxjscx';
 const JWXT_HOME_URL = 'https://jwxt.xjtu.edu.cn/jwapp/sys/homeapp/index.do';
 const YWTB_HOME_URL = 'https://ywtb.xjtu.edu.cn/';
-const ATTENDANCE_HOME_URL = 'https://bk-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc';
+const ISPACE_HOME_URL = 'https://ispace.xjtu.edu.cn/';
 const LIBRARY_HOME_URL = 'https://webvpn.xjtu.edu.cn/http-8086/77726476706e69737468656265737421e2f00f902e322648741c9ce29d51367bae38/seat/';
-const CARD_HOME_URL = 'https://ncard.xjtu.edu.cn/';
 const AUTH_TARGETS = {
   jwxt: { label: '教务系统', url: JWXT_HOME_URL, hosts: ['jwxt.xjtu.edu.cn'] },
-  ywtb: { label: '一网通办', url: YWTB_HOME_URL, hosts: ['ywtb.xjtu.edu.cn'] }
+  ywtb: { label: '一网通办', url: YWTB_HOME_URL, hosts: ['ywtb.xjtu.edu.cn'] },
+  lms: { label: '思源学堂 2.0', url: 'https://lms.xjtu.edu.cn/user/index#/', hosts: ['lms.xjtu.edu.cn'] },
+  ispace: { label: '思源学习空间', url: ISPACE_HOME_URL, hosts: ['ispace.xjtu.edu.cn'] }
 };
 const AUTH_FLOW_STORAGE_KEY = 'authFlow';
 const AUTH_VAULT_KEY = 'authVault';
@@ -77,6 +88,7 @@ const AUTH_KEY_STORE = 'keys';
 let authFlow = null;
 let authSessionCredentials = null;
 let authSaved = false;
+let authSavedUsername = '';
 
 function openAuthKeyDatabase() {
   return new Promise((resolve, reject) => {
@@ -125,6 +137,7 @@ async function savePersistentAuth(credentials) {
     [AUTH_VAULT_KEY]: { version: 1, username: String(credentials.username), iv: authBase64(iv), ciphertext: authBase64(ciphertext), updatedAt: Date.now() }
   });
   authSaved = true;
+  authSavedUsername = String(credentials.username || '');
 }
 
 async function loadPersistentAuth() {
@@ -132,8 +145,10 @@ async function loadPersistentAuth() {
   const vault = stored?.[AUTH_VAULT_KEY];
   if (!vault?.iv || !vault?.ciphertext || !vault?.username) {
     authSaved = false;
+    authSavedUsername = '';
     return null;
   }
+  authSavedUsername = String(vault.username);
   try {
     const key = await authCryptoKey();
     const plaintext = await crypto.subtle.decrypt(
@@ -151,6 +166,7 @@ async function refreshAuthSavedState() {
   try {
     const stored = await chrome.storage.local.get(AUTH_VAULT_KEY);
     authSaved = Boolean(stored?.[AUTH_VAULT_KEY]?.ciphertext);
+    authSavedUsername = authSaved ? String(stored?.[AUTH_VAULT_KEY]?.username || '') : '';
   } catch {}
   return authSaved;
 }
@@ -158,6 +174,7 @@ async function refreshAuthSavedState() {
 async function clearPersistentAuth() {
   await chrome.storage.local.remove(AUTH_VAULT_KEY);
   authSaved = false;
+  authSavedUsername = '';
 }
 
 async function persistAuthFlow(flow = authFlow) {
@@ -199,11 +216,11 @@ async function restoreAuthFlow() {
 }
 
 function publicAuthState() {
-  if (!authFlow) return { status: 'idle', target: '', username: '', message: '', canOpen: false, remembered: false, saved: authSaved };
+  if (!authFlow) return { status: 'idle', target: '', username: authSavedUsername, message: '', canOpen: false, remembered: false, saved: authSaved };
   return {
     status: authFlow.status,
     target: authFlow.target,
-    username: authFlow.username,
+    username: authFlow.username || authSavedUsername,
     message: authFlow.message || '',
     canOpen: Number.isInteger(authFlow.tabId),
     remembered: Boolean(authFlow.rememberSession),
@@ -237,7 +254,7 @@ async function saveAuthSessionCredentials(credentials, remember) {
     await chrome.storage.session.remove('authCredentials');
   } catch {}
   if (remember) {
-    try { await savePersistentAuth(credentials); } catch { authSaved = false; }
+    try { await savePersistentAuth(credentials); } catch { authSaved = false; authSavedUsername = ''; }
   }
 }
 
@@ -479,7 +496,7 @@ async function runInBackgroundTab(url, message) {
 async function sendToCampus(tabId, messageType = 'CAMPUS_GET_OVERVIEW', query = {}) {
   const message = { type: messageType, ...(query && Object.keys(query).length ? { query } : {}) };
   if (!tabId) {
-    const url = ['CAMPUS_GET_PORTAL', 'CAMPUS_GET_PERSONAL_DIGEST'].includes(messageType) ? YWTB_HOME_URL :
+    const url = messageType === 'CAMPUS_GET_PORTAL' ? YWTB_HOME_URL :
       messageType === 'CAMPUS_GET_CLASSROOMS' || messageType === 'CAMPUS_GET_CLASSROOM_CODES' ? CLASSROOM_PAGE_URL : JWXT_HOME_URL;
     const response = await runInBackgroundTab(url, message);
     if (!response?.ok) throw new Error(response?.error || '后台读取校园页面失败');
@@ -490,14 +507,14 @@ async function sendToCampus(tabId, messageType = 'CAMPUS_GET_OVERVIEW', query = 
   try {
     url = parseTabUrl(tab);
   } catch {
-    const fallbackUrl = ['CAMPUS_GET_PORTAL', 'CAMPUS_GET_PERSONAL_DIGEST'].includes(messageType) ? YWTB_HOME_URL :
+    const fallbackUrl = messageType === 'CAMPUS_GET_PORTAL' ? YWTB_HOME_URL :
       messageType === 'CAMPUS_GET_CLASSROOMS' || messageType === 'CAMPUS_GET_CLASSROOM_CODES' ? CLASSROOM_PAGE_URL : JWXT_HOME_URL;
     const response = await runInBackgroundTab(fallbackUrl, message);
     if (!response?.ok) throw new Error(response?.error || '后台读取校园页面失败');
     return response;
   }
   if (!['jwxt.xjtu.edu.cn', 'ywtb.xjtu.edu.cn'].includes(url.hostname)) {
-    const fallbackUrl = ['CAMPUS_GET_PORTAL', 'CAMPUS_GET_PERSONAL_DIGEST'].includes(messageType) ? YWTB_HOME_URL :
+    const fallbackUrl = messageType === 'CAMPUS_GET_PORTAL' ? YWTB_HOME_URL :
       messageType === 'CAMPUS_GET_CLASSROOMS' || messageType === 'CAMPUS_GET_CLASSROOM_CODES' ? CLASSROOM_PAGE_URL : JWXT_HOME_URL;
     const response = await runInBackgroundTab(fallbackUrl, message);
     if (!response?.ok) throw new Error(response?.error || '后台读取校园页面失败');
@@ -523,22 +540,6 @@ async function sendToCampus(tabId, messageType = 'CAMPUS_GET_OVERVIEW', query = 
   return response;
 }
 
-async function sendToAttendance(tabId, query = {}) {
-  if (!tabId) {
-    const response = await runInBackgroundTab(ATTENDANCE_HOME_URL, { type: 'ATTENDANCE_GET_OVERVIEW', query });
-    if (!response?.ok) throw new Error(response?.error || '后台读取考勤失败');
-    return response;
-  }
-  const tab = await chrome.tabs.get(tabId);
-  const url = parseTabUrl(tab);
-  if (!['bk-kq.xjtu.edu.cn', 'yjs-kq.xjtu.edu.cn'].includes(url.hostname)) {
-    throw new Error('请先打开本科或研究生考勤系统页面');
-  }
-  const response = await chrome.tabs.sendMessage(tabId, { type: 'ATTENDANCE_GET_OVERVIEW', query });
-  if (!response?.ok) throw new Error(response?.error || '无法读取考勤页面，请刷新后重试');
-  return response;
-}
-
 async function sendToLibrary(tabId, floorCode) {
   if (!tabId) {
     const response = await runInBackgroundTab(LIBRARY_HOME_URL, { type: 'LIBRARY_GET_FLOOR', floorCode });
@@ -552,20 +553,6 @@ async function sendToLibrary(tabId, floorCode) {
   if (!direct && !webvpn) throw new Error('请先打开图书馆座位页面');
   const response = await chrome.tabs.sendMessage(tabId, { type: 'LIBRARY_GET_FLOOR', floorCode });
   if (!response?.ok) throw new Error(response?.error || '无法读取图书馆座位，请刷新后重试');
-  return response;
-}
-
-async function sendToCard(tabId) {
-  if (!tabId) {
-    const response = await runInBackgroundTab(CARD_HOME_URL, { type: 'CARD_GET_OVERVIEW' });
-    if (!response?.ok) throw new Error(response?.error || '后台读取校园卡失败');
-    return response;
-  }
-  const tab = await chrome.tabs.get(tabId);
-  const url = parseTabUrl(tab);
-  if (url.hostname !== 'ncard.xjtu.edu.cn') throw new Error('请先打开校园卡页面');
-  const response = await chrome.tabs.sendMessage(tabId, { type: 'CARD_GET_OVERVIEW' });
-  if (!response?.ok) throw new Error(response?.error || '无法读取校园卡，请刷新后重试');
   return response;
 }
 
@@ -628,9 +615,9 @@ async function sendToSchoolInbox(tabId) {
 async function sessionStatus(tabId) {
   const tab = await chrome.tabs.get(tabId);
   const url = parseTabUrl(tab);
-  if (url.hostname === 'lms.xjtu.edu.cn') {
+  if (['lms.xjtu.edu.cn', 'ispace.xjtu.edu.cn'].includes(url.hostname)) {
     const response = await chrome.tabs.sendMessage(tabId, { type: 'LMS_STATUS' });
-    return { site: 'lms', loggedIn: Boolean(response?.ok && response.loggedIn) };
+    return { site: url.hostname === 'ispace.xjtu.edu.cn' ? 'ispace' : 'lms', loggedIn: Boolean(response?.ok && response.loggedIn) };
   }
   if (['jwxt.xjtu.edu.cn', 'ywtb.xjtu.edu.cn'].includes(url.hostname)) {
     return sendToCampus(tabId, 'CAMPUS_GET_STATUS');
@@ -673,7 +660,7 @@ function taskKey(kind, activityId, discriminator) {
   return `${kind}:${activityId}:${discriminator}`;
 }
 
-function createTask({ kind, originTabId, courseId, courseName, activityId, activityTitle, label, uploadId, referenceId, uploadName, fileKey, source, size, replayCode, liveDirect, submissionId, originUploadName, zyxfId }) {
+function createTask({ kind, originTabId, courseId, courseName, activityId, activityTitle, label, uploadId, referenceId, uploadName, fileKey, source, size, replayCode, liveDirect, submissionId, originUploadName, zyxfId, baseUrl }) {
   const discriminator = kind === 'replay' ? label : kind === 'upload' || kind === 'pdf' ? uploadId : kind === 'marked' ? originUploadName : kind === 'zyxf' ? zyxfId : fileKey;
   const key = taskKey(kind, activityId, discriminator);
   const existing = tasks.find(task => task.key === key && !['completed', 'canceled'].includes(task.state));
@@ -693,6 +680,7 @@ function createTask({ kind, originTabId, courseId, courseName, activityId, activ
     referenceId: referenceId || null,
     uploadName: uploadName || null,
     fileKey: fileKey || null,
+    baseUrl: baseUrl || null,
     source: source || null,
     size: Number(size) || 0,
     replayCode: replayCode || null,
@@ -814,6 +802,7 @@ async function queueBatch(message) {
           activityTitle: item.activityTitle || item.title,
           replayCode: item.replayCode,
           liveDirect: item.liveDirect,
+          baseUrl: item.baseUrl,
           label
         });
       }
@@ -831,6 +820,7 @@ async function queueBatch(message) {
         fileKey: item.fileKey,
         source: item.source,
         size: item.size,
+        baseUrl: item.baseUrl,
         submissionId: item.submissionId,
         originUploadName: item.originUploadName
       });
@@ -978,16 +968,17 @@ function resourceFilename(task) {
 }
 
 async function resolveUpload(task) {
+  const baseUrl = task.baseUrl || 'https://lms.xjtu.edu.cn';
   if (task.referenceId) {
     return {
-      url: assertDownloadUrl(`https://lms.xjtu.edu.cn/api/uploads/reference/${task.referenceId}/blob`),
+      url: assertDownloadUrl(`${baseUrl}/api/uploads/reference/${task.referenceId}/blob`),
       filename: resourceFilename(task),
       totalBytes: task.size || 0
     };
   }
   if (task.uploadId && !/\.pdf$/i.test(task.uploadName || '')) {
     return {
-      url: assertDownloadUrl(`https://lms.xjtu.edu.cn/api/uploads/${task.uploadId}/blob`),
+      url: assertDownloadUrl(`${baseUrl}/api/uploads/${task.uploadId}/blob`),
       filename: resourceFilename(task),
       totalBytes: task.size || 0
     };
@@ -1138,7 +1129,14 @@ async function scanCourses(tabId) {
   broadcast();
   try {
     const response = await sendToLms(tabId, { type: 'LMS_SCAN_COURSES' });
-    const courses = response.courses.map(item => summarizeCourse(item.course, item.activities, item.details || {}, { bulletins: item.bulletins || [] }));
+    const sourceTab = await chrome.tabs.get(tabId);
+    const sourceOrigin = (() => {
+      try {
+        const url = new URL(sourceTab.url || '');
+        return ['lms.xjtu.edu.cn', 'ispace.xjtu.edu.cn'].includes(url.hostname) ? url.origin : null;
+      } catch { return null; }
+    })();
+    const courses = response.courses.map(item => summarizeCourse({ ...item.course, baseUrl: sourceOrigin }, item.activities, item.details || {}, { bulletins: item.bulletins || [] }));
     catalog = { version: 3, courses, todos: normalizeTodos(response.todos), updatedAt: Date.now(), sourceTabId: tabId };
     scanState = { ...scanState, state: 'done', done: courses.length, total: courses.length };
     await chrome.storage.local.set({ catalog });
@@ -1259,6 +1257,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
         return { ok: true, ...publicActivity(response.activity, response.course), context: parsed };
       }
+      case 'GET_LMS_HOMEWORKS':
+        return { ok: true, ...(await getLmsHomeworks(message.tabId, message.platform || 'lms')) };
       case 'GET_CAMPUS_OVERVIEW':
         return { ok: true, ...(await sendToCampus(message.tabId)) };
       case 'GET_CAMPUS_PORTAL':
@@ -1269,16 +1269,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return { ok: true, ...(await sendToCampus(message.tabId, 'CAMPUS_GET_CLASSROOM_CODES')) };
       case 'GET_CLASSROOMS':
         return { ok: true, ...(await sendToCampus(message.tabId, 'CAMPUS_GET_CLASSROOMS')) };
-      case 'GET_ATTENDANCE_OVERVIEW':
-        return { ok: true, ...(await sendToAttendance(message.tabId, message.query || {})) };
       case 'GET_LIBRARY_FLOOR':
         return { ok: true, ...(await sendToLibrary(message.tabId, message.floorCode)) };
-      case 'GET_CARD_OVERVIEW':
-        return { ok: true, ...(await sendToCard(message.tabId)) };
       case 'GET_SCHOOL_INBOX':
         return { ok: true, data: await sendToSchoolInbox(message.tabId) };
-      case 'GET_PERSONAL_DIGEST':
-        return { ok: true, ...(await sendToCampus(message.tabId, 'CAMPUS_GET_PERSONAL_DIGEST')) };
       case 'GET_SESSION_STATUS':
         return { ok: true, ...(await sessionStatus(message.tabId)) };
       case 'QUEUE_REPLAY':

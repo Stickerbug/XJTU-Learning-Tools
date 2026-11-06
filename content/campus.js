@@ -39,16 +39,6 @@
     return response.json();
   }
 
-  function currentUser(payload) {
-    const source = payload?.datas?.currentUser?.rows?.[0] || payload?.datas?.currentUser ||
-      payload?.data?.user || payload?.data || payload?.user || payload;
-    return {
-      name: pick(source, ['XM', 'xm', 'name', 'realName', 'userName', 'username']),
-      studentId: pick(source, ['XH', 'xh', 'studentNo', 'studentId', 'account']),
-      department: pick(source, ['YXSMC', 'YXSMC_DISPLAY', 'department', 'deptName', 'orgName'])
-    };
-  }
-
   function normalizeSchedule(rows) {
     return rows.slice(0, 200).map(row => ({
       course: pick(row, ['KCM', 'KCMC', 'KCMX', 'courseName', 'course_name']),
@@ -172,18 +162,15 @@
 
   async function jwxtOverview() {
     await ensureStudentRole();
-    const userRequest = api('/jwapp/sys/homeapp/api/home/currentUser.do');
     const termRequest = api('/jwapp/sys/wdkb/modules/jshkcb/dqxnxq.do', {
       method: 'POST',
       headers: { Accept: 'application/json, text/javascript, */*; q=0.01' }
     });
-    const [userResult, termResult] = await Promise.allSettled([userRequest, termRequest]);
-    const user = userResult.status === 'fulfilled' ? currentUser(userResult.value) : {};
+    const [termResult] = await Promise.allSettled([termRequest]);
     const termPayload = termResult.status === 'fulfilled' ? termResult.value : null;
     const termRow = rowsFrom(termPayload, ['datas.dqxnxq', 'data.dqxnxq', 'dqxnxq'])[0] || {};
     const term = pick(termRow, ['DM', 'dm', 'termCode', 'XNXQDM']) || pick(termPayload, ['xnxqdm', 'termCode']);
     const errors = [];
-    if (userResult.status === 'rejected') errors.push('用户信息');
     if (termResult.status === 'rejected') errors.push('当前学期');
     const requests = [
       ['schedule', api('/jwapp/sys/wdkb/modules/xskcb/xskcb.do', { method: 'POST', body: new URLSearchParams({ XNXQDM: term || '' }) })],
@@ -198,7 +185,7 @@
       })]
     ];
     const settled = await Promise.allSettled(requests.map(item => item[1]));
-    const result = { site: 'jwxt', user, term, schedule: [], exams: [], grades: [], errors };
+    const result = { site: 'jwxt', term, schedule: [], exams: [], grades: [], errors };
     for (let index = 0; index < settled.length; index += 1) {
       const [name] = requests[index];
       const response = settled[index];
@@ -407,42 +394,6 @@
     return { menus: normalizeMenu(payloads), sources: payloads.length };
   }
 
-  function listFrom(value) {
-    if (Array.isArray(value)) return value;
-    if (Array.isArray(value?.list)) return value.list;
-    if (Array.isArray(value?.rows)) return value.rows;
-    if (Array.isArray(value?.records)) return value.records;
-    if (Array.isArray(value?.items)) return value.items;
-    return [];
-  }
-
-  async function personalDigest() {
-    if (location.hostname !== 'ywtb.xjtu.edu.cn') throw new Error('请打开一网通办页面');
-    const headers = sessionToken() ? { 'X-Id-Token': sessionToken() } : {};
-    const results = await Promise.allSettled([
-      api('/portal-api/v2/personalData/getMyBooks', { headers }),
-      api('/portal-api/v2/personalData/getMailbox', { headers }),
-      api('/portal-api/v1/intranet/getDetail', { headers })
-    ]);
-    const value = index => results[index].status === 'fulfilled' ? results[index].value : null;
-    const bookData = value(0)?.data ?? value(0) ?? {};
-    const mailboxData = value(1)?.data ?? value(1) ?? {};
-    const intranetData = value(2)?.data ?? value(2) ?? {};
-    const books = listFrom(bookData).map(item => ({
-      title: pick(item, ['bookName', 'title', 'name', 'book_title']),
-      author: pick(item, ['author', 'authorName']),
-      dueDate: pick(item, ['returnDate', 'dueDate', 'endDate', 'shouldReturnDate']),
-      status: pick(item, ['status', 'state'])
-    })).filter(item => item.title);
-    return {
-      books,
-      unreadMail: Number(mailboxData.mailboxUnreadSum ?? mailboxData.unreadCount ?? mailboxData.count ?? 0) || 0,
-      network: { enableVpn: Boolean(intranetData.enableVpn ?? intranetData.enableVPN), autoConnectAtLogin: Boolean(intranetData.autoConnectAtLogin), autoConnectAtIntranet: Boolean(intranetData.autoConnectAtIntranet) },
-      errors: results.map(item => item.status === 'rejected' ? textValue(item.reason?.message || '部分数据读取失败') : '').filter(Boolean),
-      fetchedAt: new Date().toISOString()
-    };
-  }
-
   async function loginStatus() {
     try {
       if (location.hostname === 'jwxt.xjtu.edu.cn') {
@@ -464,13 +415,12 @@
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (!['CAMPUS_GET_OVERVIEW', 'CAMPUS_GET_PORTAL', 'CAMPUS_GET_STATUS', 'CAMPUS_GET_CLASSROOM_CODES', 'CAMPUS_GET_CLASSROOMS', 'CAMPUS_GET_SCHOOL_COURSES', 'CAMPUS_GET_TOKEN', 'CAMPUS_GET_PERSONAL_DIGEST'].includes(message?.type)) return false;
+    if (!['CAMPUS_GET_OVERVIEW', 'CAMPUS_GET_PORTAL', 'CAMPUS_GET_STATUS', 'CAMPUS_GET_CLASSROOM_CODES', 'CAMPUS_GET_CLASSROOMS', 'CAMPUS_GET_SCHOOL_COURSES', 'CAMPUS_GET_TOKEN'].includes(message?.type)) return false;
     if (message.type === 'CAMPUS_GET_TOKEN') {
       sendResponse({ ok: true, token: sessionToken() });
       return false;
     }
     const request = message.type === 'CAMPUS_GET_PORTAL' ? portalMenu()
-      : message.type === 'CAMPUS_GET_PERSONAL_DIGEST' ? personalDigest()
       : message.type === 'CAMPUS_GET_STATUS' ? loginStatus()
         : message.type === 'CAMPUS_GET_CLASSROOM_CODES' ? classroomCodes()
         : message.type === 'CAMPUS_GET_CLASSROOMS' ? classrooms(message.query || {})

@@ -24,19 +24,17 @@ const sourceOrder = [
 ];
 
 const PORTAL_SITES = [
-  { category: '学习', name: '思源学堂', description: '课程、回放、课件和作业', url: 'https://lms.xjtu.edu.cn/' },
+  { category: '学习', name: '思源学堂 2.0', description: '本科课程、回放、课件和作业', url: 'https://lms.xjtu.edu.cn/' },
+  { category: '学习', name: '思源学习空间', description: '研究生课程、直播回放、课件和作业', url: 'https://ispace.xjtu.edu.cn/' },
   { category: '学习', name: '教务系统', description: '课表、成绩、考试和选课', url: 'https://jwxt.xjtu.edu.cn/' },
   { category: '学习', name: '我的课表', description: '教务系统当前学期课程安排', url: 'https://jwxt.xjtu.edu.cn/jwapp/sys/wdkb/modules/xskcb/xskcb.do' },
   { category: '学习', name: '成绩查询', description: '课程成绩和学分信息', url: 'https://jwxt.xjtu.edu.cn/jwapp/sys/cjcx/modules/cjcx/xscjcx.do' },
   { category: '学习', name: '全校课程查询', description: '按学期、院系、校区和时间查找课程', url: 'https://jwxt.xjtu.edu.cn/jwapp/sys/kcbcx/*default/index.do' },
   { category: '学习', name: '考试安排', description: '考试时间和地点', url: 'https://jwxt.xjtu.edu.cn/jwapp/sys/studentWdksapApp/modules/wdksap/wdksap.do' },
-  { category: '学习', name: '本科考勤', description: '课程考勤、缺勤和迟到记录', url: 'https://bk-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc' },
-  { category: '学习', name: '研究生考勤', description: '课程考勤、缺勤和迟到记录', url: 'https://yjs-kq.xjtu.edu.cn/sa/auth/cas/login/student-pc' },
   { category: '学习', name: '空教室查询', description: '按时间查询可用教室', url: 'https://jwxt.xjtu.edu.cn/jwapp/sys/kxjas/modules/kxjscx/cxkxjs.do' },
   { category: '学习', name: '选课服务', description: '本科生选课与培养方案', url: 'https://xkfw.xjtu.edu.cn/' },
   { category: '学习', name: '教务处', description: '教学通知、校历和教学信息', url: 'https://dean.xjtu.edu.cn/' },
   { category: '学习', name: '一网通办', description: '校园服务统一入口', url: 'https://ywtb.xjtu.edu.cn/' },
-  { category: '服务', name: '校园卡', description: '余额、消费和卡片服务', url: 'https://ncard.xjtu.edu.cn/' },
   { category: '服务', name: '学生邮箱', description: '学生电子邮件系统', url: 'https://stu.xjtu.edu.cn/' },
   { category: '服务', name: '网络信息中心', description: '校园网络、VPN和账号服务', url: 'https://nic.xjtu.edu.cn/' },
   { category: '服务', name: 'WebVPN', description: '校外访问校内服务', url: 'https://webvpn.xjtu.edu.cn/' },
@@ -63,20 +61,14 @@ let livePortalSites = [];
 let portalLoading = false;
 let campusData = null;
 let campusLoading = false;
+let homeworkLoading = false;
+let homeworkData = null;
 let schoolCourseData = null;
 let schoolCourseLoading = false;
-let attendanceData = null;
-let attendanceLoading = false;
-let attendanceCourseFilter = 'all';
-let attendanceStatusFilter = 'all';
 let libraryData = null;
 let libraryLoading = false;
-let cardData = null;
-let cardLoading = false;
 let inboxData = null;
 let inboxLoading = false;
-let personalData = null;
-let personalLoading = false;
 let gradeTermFilter = 'all';
 let courseSearchQuery = '';
 let scheduleView = 'list';
@@ -182,7 +174,7 @@ async function checkSession() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) throw new Error('请先打开校园站点');
     const result = await call({ type: 'GET_SESSION_STATUS', tabId: tab.id });
-    const names = { lms: '思源学堂', jwxt: '教务系统', ywtb: '一网通办' };
+    const names = { lms: '思源学堂 2.0', ispace: '思源学习空间', jwxt: '教务系统', ywtb: '一网通办' };
     container.hidden = false;
     container.textContent = `${names[result.site] || result.site}：${result.loggedIn === true ? '已登录' : result.loggedIn === false ? '未登录' : '当前页暂不支持检测'}`;
     container.className = `session-status ${result.loggedIn === true ? 'is-online' : ''}`;
@@ -591,20 +583,18 @@ function renderTodayCenter() {
 
 function renderCampus() {
   const status = $('#campus-state');
-  const profile = $('#campus-profile');
   const schedule = $('#campus-schedule');
   const exams = $('#campus-exams');
   const grades = $('#campus-grades');
   const gradeSummary = $('#campus-grade-summary');
   const gradeTerm = $('#campus-grade-term');
-  if (!status || !profile || !schedule || !exams || !grades || !gradeSummary || !gradeTerm) return;
+  if (!status || !schedule || !exams || !grades || !gradeSummary || !gradeTerm) return;
   schedule.replaceChildren();
   const scheduleWeek = $('#campus-schedule-week');
   if (scheduleWeek) scheduleWeek.replaceChildren();
   exams.replaceChildren();
   grades.replaceChildren();
   gradeSummary.replaceChildren();
-  profile.replaceChildren();
   if (campusLoading) {
     status.textContent = '正在读取当前页面…';
     gradeSummary.hidden = true;
@@ -614,7 +604,6 @@ function renderCampus() {
   }
   if (!campusData) {
     status.textContent = '点击读取即可后台复用已登录会话；首次使用请先完成一次认证。';
-    profile.hidden = true;
     $('#campus-schedule-count').textContent = '';
     $('#campus-exam-count').textContent = '';
     $('#campus-grade-count').textContent = '';
@@ -630,16 +619,6 @@ function renderCampus() {
   }
   const errors = campusData.errors || [];
   status.textContent = `${campusData.site === 'jwxt' ? '教务系统' : '一网通办'}${campusData.term ? ` · ${campusData.term}` : ''}${errors.length ? ` · 未读取：${errors.join('、')}` : ''}`;
-  const user = campusData.user || {};
-  const profileParts = [user.name, user.studentId, user.department].filter(Boolean);
-  if (profileParts.length) {
-    const label = document.createElement('span');
-    label.textContent = '当前用户';
-    const value = document.createElement('strong');
-    value.textContent = profileParts.join(' · ');
-    profile.append(label, value);
-    profile.hidden = false;
-  } else profile.hidden = true;
   const scheduleRows = Array.isArray(campusData.schedule) ? campusData.schedule : [];
   const examRows = Array.isArray(campusData.exams) ? campusData.exams : [];
   const gradeRows = Array.isArray(campusData.grades) ? campusData.grades : [];
@@ -766,66 +745,6 @@ async function loadLibrary() {
   }
 }
 
-function renderCard() {
-  const stateElement = $('#card-state');
-  const summary = $('#card-summary');
-  const transactions = $('#card-transactions');
-  if (!stateElement || !summary || !transactions) return;
-  summary.replaceChildren();
-  transactions.replaceChildren();
-  if (cardLoading) { stateElement.textContent = '正在读取校园卡…'; return; }
-  if (!cardData) { stateElement.textContent = '点击读取即可后台复用已登录会话；首次使用请先完成一次校园卡认证。'; transactions.append(campusEmpty('暂无校园卡数据')); return; }
-  const card = cardData.card;
-  stateElement.textContent = `${cardData.errors?.length ? `部分数据未读取：${cardData.errors.join('、')} · ` : ''}近 30 天流水 ${cardData.transactions?.length || 0} 条`;
-  const status = card ? (card.frozen ? '已冻结' : card.lost ? '已挂失' : '正常') : '余额未读取';
-  for (const [label, value, note] of [
-    ['余额', card ? `¥${Number(card.balance || 0).toFixed(2)}` : '—', card?.type || '一卡通'],
-    ['未结算', card ? `¥${Number(card.pending || 0).toFixed(2)}` : '—', '待结算金额'],
-    ['卡状态', status, card?.expireDate ? `有效期 ${card.expireDate}` : '当前状态'],
-    ['流水', cardData.transactions?.length || 0, '近 30 天']
-  ]) {
-    const item = document.createElement('div');
-    item.className = 'summary-card';
-    const number = document.createElement('strong'); number.textContent = String(value);
-    const title = document.createElement('span'); title.textContent = label;
-    const hint = document.createElement('small'); hint.textContent = note;
-    item.append(number, title, hint); summary.append(item);
-  }
-  summary.hidden = false;
-  const records = cardData.transactions || [];
-  if (!records.length) { transactions.append(campusEmpty('近 30 天没有流水')); return; }
-  const table = document.createElement('div'); table.className = 'card-transaction-list';
-  for (const record of records) {
-    const row = document.createElement('article'); row.className = 'card-transaction-row';
-    const main = document.createElement('div');
-    const merchant = document.createElement('strong'); merchant.textContent = record.merchant || '校园消费';
-    const detail = document.createElement('span'); detail.textContent = [record.time, record.description].filter(Boolean).join(' · ');
-    main.append(merchant, detail);
-    const amount = document.createElement('b');
-    const income = /充值|退款|补助|圈存|transfer-in|refund/i.test(`${record.type} ${record.description}`);
-    amount.className = income ? 'is-income' : 'is-expense';
-    amount.textContent = `${income ? '+' : '-'}¥${Math.abs(Number(record.amount || 0)).toFixed(2)}`;
-    row.append(main, amount); table.append(row);
-  }
-  transactions.append(table);
-}
-
-async function cardTab() {
-  const tabs = await chrome.tabs.query({});
-  const matches = tab => { try { return new URL(tab.url || '').hostname === 'ncard.xjtu.edu.cn'; } catch { return false; } };
-  return tabs.find(tab => tab.active && matches(tab)) || tabs.find(matches) || null;
-}
-
-async function loadCard() {
-  cardLoading = true; renderCard();
-  try {
-    const tab = await cardTab();
-    const response = await call({ type: 'GET_CARD_OVERVIEW', tabId: tab?.id || 0 });
-    cardData = response.data; showNotice('校园卡数据已更新', 'success');
-  } catch (error) { cardData = null; showNotice(error.message); }
-  finally { cardLoading = false; renderCard(); }
-}
-
 function renderInbox() {
   const stateElement = $('#inbox-state');
   const summary = $('#inbox-summary');
@@ -874,26 +793,6 @@ async function loadInbox() {
   } catch (error) { inboxData = null; showNotice(error.message); }
   finally { inboxLoading = false; renderInbox(); }
 }
-
-function personalTab() { return inboxTab(); }
-function renderPersonal() {
-  const stateElement = $('#personal-state'), summary = $('#personal-summary'), books = $('#personal-books'), network = $('#personal-network');
-  if (!stateElement || !summary || !books || !network) return;
-  summary.replaceChildren(); books.replaceChildren(); network.replaceChildren();
-  if (personalLoading) { stateElement.textContent = '正在读取个人摘要…'; return; }
-  if (!personalData) { stateElement.textContent = '点击读取即可后台复用已登录会话；首次使用请先完成一次一网通办认证。'; books.append(campusEmpty('暂无借阅数据')); return; }
-  stateElement.textContent = `${personalData.errors?.length ? `部分数据未读取：${personalData.errors.join('、')} · ` : ''}更新于 ${new Date(personalData.fetchedAt || Date.now()).toLocaleTimeString('zh-CN')}`;
-  for (const [label, value, note] of [['借阅中', personalData.books?.length || 0, '当前借阅'], ['未读邮箱', personalData.unreadMail || 0, '邮箱摘要'], ['VPN要求', personalData.network?.enableVpn ? '可能需要' : '未标记', '服务网络要求']]) {
-    const item = document.createElement('div'); item.className = 'summary-card';
-    const n = document.createElement('strong'); n.textContent = String(value); const t = document.createElement('span'); t.textContent = label; const h = document.createElement('small'); h.textContent = note; item.append(n, t, h); summary.append(item);
-  }
-  summary.hidden = false;
-  if (!(personalData.books || []).length) books.append(campusEmpty('当前没有借阅记录'));
-  for (const book of personalData.books || []) { const row = document.createElement('article'); row.className = 'inbox-item'; const title = document.createElement('strong'); title.textContent = book.title; const meta = document.createElement('span'); meta.textContent = [book.author, book.dueDate ? `应还 ${book.dueDate}` : '', book.status].filter(Boolean).join(' · '); row.append(title, meta); books.append(row); }
-  const networkRows = [['VPN', personalData.network?.enableVpn ? '服务可能需要 VPN' : '未标记需要 VPN'], ['登录自动连接', personalData.network?.autoConnectAtLogin ? '已配置' : '未配置'], ['校内网自动连接', personalData.network?.autoConnectAtIntranet ? '已配置' : '未配置']];
-  for (const [label, text] of networkRows) { const row = document.createElement('div'); row.className = 'personal-network-row'; row.append(Object.assign(document.createElement('strong'), { textContent: label }), Object.assign(document.createElement('span'), { textContent: text })); network.append(row); }
-}
-async function loadPersonal() { personalLoading = true; renderPersonal(); try { const tab = await personalTab(); personalData = (await call({ type: 'GET_PERSONAL_DIGEST', tabId: tab?.id || 0 })).data; showNotice('个人摘要已更新', 'success'); } catch (error) { personalData = null; showNotice(error.message); } finally { personalLoading = false; renderPersonal(); } }
 
 function resourcesFor(course) {
   if (Array.isArray(course.resources)) return course.resources;
@@ -1284,6 +1183,216 @@ function renderCatalog() {
   }
 }
 
+function homeworkPlainText(value) {
+  const document = new DOMParser().parseFromString(String(value || ''), 'text/html');
+  return String(document.body?.textContent || '').replace(/\s+/g, ' ').trim();
+}
+
+function homeworkDescriptionFragment(value) {
+  const parsed = new DOMParser().parseFromString(String(value || ''), 'text/html');
+  const fragment = document.createDocumentFragment();
+  const append = node => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (node.nodeValue) fragment.append(document.createTextNode(node.nodeValue));
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    if (node.tagName === 'IMG') {
+      try {
+        const url = new URL(node.getAttribute('src') || '', location.href);
+        if (!['lms.xjtu.edu.cn', 'ispace.xjtu.edu.cn', 'media.xjtu.edu.cn'].includes(url.hostname)) return;
+        const image = document.createElement('img');
+        image.src = url.href;
+        image.alt = node.getAttribute('alt') || '作业要求图片';
+        image.loading = 'lazy';
+        image.referrerPolicy = 'no-referrer';
+        fragment.append(image);
+      } catch {}
+      return;
+    }
+    for (const child of node.childNodes) append(child);
+    if (['P', 'DIV', 'LI', 'BR'].includes(node.tagName)) fragment.append(document.createTextNode('\n'));
+  };
+  for (const child of parsed.body?.childNodes || []) append(child);
+  return fragment;
+}
+
+function homeworkFileResource(file) {
+  const resource = resourceIndex.get(`upload:${file.activityId}:${file.uploadId}`) || file;
+  return {
+    ...resource,
+    baseUrl: resource.baseUrl || file.baseUrl || null,
+    sourceTabId: resource.sourceTabId || file.sourceTabId || 0,
+    platform: resource.platform || file.platform || null,
+    platformLabel: resource.platformLabel || file.platformLabel || null
+  };
+}
+
+function renderHomework() {
+  const stateElement = $('#homework-state');
+  const summary = $('#homework-summary');
+  const results = $('#homework-results');
+  if (!stateElement || !summary || !results) return;
+  summary.replaceChildren();
+  results.replaceChildren();
+  if (homeworkLoading) {
+    stateElement.textContent = '正在读取思源学堂 2.0 和思源学习空间作业…';
+    return;
+  }
+  if (!homeworkData) {
+    stateElement.textContent = '点击刷新后读取当前课程和未完成作业。';
+    results.append(campusEmpty('还没有读取作业'));
+    return;
+  }
+  const items = [...(homeworkData.homework || [])].sort((a, b) => (parseCampusDate(a.deadline)?.getTime() || Infinity) - (parseCampusDate(b.deadline)?.getTime() || Infinity));
+  const soon = items.filter(item => {
+    const due = parseCampusDate(item.deadline);
+    return due && due.getTime() - Date.now() <= 7 * 86400000;
+  }).length;
+  const withFiles = items.filter(item => (item.uploads || []).length).length;
+  for (const [label, value, note] of [['未完成', items.length, '当前课程'], ['7 天内截止', soon, '需要尽快处理'], ['含附件', withFiles, '可一键下载']]) {
+    const card = document.createElement('div');
+    card.className = 'summary-card';
+    const number = document.createElement('strong'); number.textContent = String(value);
+    const title = document.createElement('span'); title.textContent = label;
+    const hint = document.createElement('small'); hint.textContent = note;
+    card.append(number, title, hint); summary.append(card);
+  }
+  summary.hidden = false;
+  const platforms = (homeworkData.platforms || []).map(item => item.label).join('、');
+  stateElement.textContent = `已读取 ${homeworkData.courseCount || 0} 门课程 · ${items.length} 项未完成作业${platforms ? ` · ${platforms}` : ''} · ${new Date(homeworkData.fetchedAt || Date.now()).toLocaleTimeString('zh-CN')}`;
+  if (!items.length) {
+    results.append(campusEmpty('当前没有未完成作业'));
+    return;
+  }
+  for (const item of items) {
+    const details = document.createElement('details');
+    details.className = 'homework-card';
+    const summaryRow = document.createElement('summary');
+    const heading = document.createElement('div');
+    heading.className = 'homework-heading';
+    const title = document.createElement('strong'); title.textContent = item.title || '未命名作业';
+    const course = document.createElement('span'); course.textContent = `${item.platformLabel || '思源学堂'} · ${item.courseName || '未命名课程'}`;
+    heading.append(title, course);
+    const due = document.createElement('span');
+    const dueInfo = todoDueInfo({ dueAt: item.deadline });
+    due.className = `homework-due ${dueInfo.className}`.trim();
+    due.textContent = item.deadline ? `未提交 · ${dueInfo.label}` : '未提交 · 截止时间待定';
+    summaryRow.append(heading, due);
+    details.append(summaryRow);
+    const body = document.createElement('div'); body.className = 'homework-body';
+    const description = homeworkPlainText(item.description);
+    if (description || /<img\b/i.test(String(item.description || ''))) {
+      const requirementTitle = document.createElement('h3'); requirementTitle.textContent = '作业要求';
+      const requirement = document.createElement('div'); requirement.className = 'homework-description'; requirement.append(homeworkDescriptionFragment(item.description));
+      body.append(requirementTitle, requirement);
+    }
+    const files = item.uploads || [];
+    const filesTitle = document.createElement('div'); filesTitle.className = 'homework-files-head';
+    const filesLabel = document.createElement('h3'); filesLabel.textContent = files.length ? `作业附件（${files.length}）` : '作业附件';
+    filesTitle.append(filesLabel);
+    if (files.length) {
+      const all = document.createElement('button'); all.type = 'button'; all.className = 'button secondary small'; all.textContent = '一键下载附件';
+      all.addEventListener('click', () => queueHomeworkFiles(files));
+      filesTitle.append(all);
+    }
+    body.append(filesTitle);
+    if (!files.length) {
+      body.append(campusEmpty('老师未上传附件'));
+    } else {
+      const fileList = document.createElement('div'); fileList.className = 'homework-file-list';
+      for (const file of files) {
+        const row = document.createElement('div'); row.className = 'homework-file-row';
+        const name = document.createElement('span'); name.textContent = `${file.name || '未命名文件'}${file.size ? ` · ${formatBytes(file.size)}` : ''}`;
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'button secondary small'; button.textContent = '下载';
+        button.addEventListener('click', () => queueHomeworkFiles([file]));
+        row.append(name, button); fileList.append(row);
+      }
+      body.append(fileList);
+    }
+    const open = document.createElement('a'); open.className = 'text-button homework-open'; open.href = item.activityUrl || `${item.baseUrl || 'https://lms.xjtu.edu.cn'}/course/${item.courseId}/learning-activity#/${item.activityId}`; open.target = '_blank'; open.rel = 'noreferrer'; open.textContent = '打开作业页面';
+    body.append(open);
+    details.append(body);
+    results.append(details);
+  }
+}
+
+async function homeworkTab(platform) {
+  const tabs = await chrome.tabs.query({});
+  const host = platform === 'ispace' ? 'ispace.xjtu.edu.cn' : 'lms.xjtu.edu.cn';
+  const matches = tab => {
+    try { return new URL(tab.url || '').hostname === host; } catch { return false; }
+  };
+  return tabs.find(tab => tab.active && matches(tab)) || tabs.find(matches) || null;
+}
+
+async function loadHomework() {
+  homeworkLoading = true;
+  renderHomework();
+  try {
+    const targets = [
+      { platform: 'lms', label: '思源学堂 2.0' },
+      { platform: 'ispace', label: '思源学习空间' }
+    ];
+    const results = await Promise.allSettled(targets.map(async target => {
+      const tab = await homeworkTab(target.platform);
+      const response = await call({ type: 'GET_LMS_HOMEWORKS', tabId: tab?.id || 0, platform: target.platform });
+      return { target, tab, response };
+    }));
+    const successes = [];
+    const errors = [];
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        const { target, tab, response } = result.value;
+        const baseUrl = response.baseUrl || (target.platform === 'ispace' ? 'https://ispace.xjtu.edu.cn' : 'https://lms.xjtu.edu.cn');
+        const homework = (response.homework || []).map(item => ({
+          ...item,
+          platform: target.platform,
+          platformLabel: item.platformLabel || target.label,
+          baseUrl,
+          sourceTabId: tab?.id || 0,
+          activityUrl: item.activityUrl || `${baseUrl}/course/${item.courseId}/learning-activity#/${item.activityId}`,
+          uploads: (item.uploads || []).map(file => ({ ...file, platform: target.platform, platformLabel: target.label, baseUrl, sourceTabId: tab?.id || 0 }))
+        }));
+        successes.push({ ...response, target, homework });
+      } else errors.push(result.reason?.message || '读取学习平台失败');
+    }
+    if (!successes.length) throw new Error(errors.join('；') || '两个学习平台都无法读取');
+    homeworkData = {
+      homework: successes.flatMap(item => item.homework),
+      courseCount: successes.reduce((sum, item) => sum + (item.courseCount || 0), 0),
+      fetchedAt: new Date().toISOString(),
+      platforms: successes.map(item => ({ platform: item.target.platform, label: item.target.label }))
+    };
+    const suffix = errors.length ? `，另一个平台暂不可用` : '';
+    showNotice(`已读取 ${homeworkData.homework.length} 项未完成作业${suffix}`, 'success');
+  } catch (error) {
+    homeworkData = null;
+    showNotice(error.message);
+  } finally {
+    homeworkLoading = false;
+    renderHomework();
+  }
+}
+
+async function queueHomeworkFiles(files) {
+  const items = files.map(homeworkFileResource).filter(item => item?.uploadId);
+  if (!items.length) return showNotice('当前附件缺少可下载地址');
+  try {
+    const groups = new Map();
+    for (const item of items) {
+      const sourceTabId = item.sourceTabId || state.catalog.sourceTabId || 0;
+      const group = groups.get(sourceTabId) || [];
+      group.push(item);
+      groups.set(sourceTabId, group);
+    }
+    for (const [sourceTabId, group] of groups) await call({ type: 'QUEUE_BATCH', sourceTabId, items: group });
+    showNotice(`已加入 ${items.length} 个附件下载任务`, 'success');
+  } catch (error) {
+    showNotice(error.message);
+  }
+}
+
 function renderTodos() {
   const todos = state.catalog.todos || [];
   $('#todo-panel').hidden = todos.length === 0;
@@ -1647,6 +1756,21 @@ async function startAuth() {
   } finally {
     button.disabled = false;
     renderAuth();
+  }
+}
+
+async function openLoginFromInterface(event) {
+  const target = event.currentTarget.dataset.openLogin || 'jwxt';
+  $('#auth-target').value = target;
+  switchView('login');
+  try {
+    const response = await call({ type: 'AUTH_START', username: state.auth.username || state.settings.username || '', password: '', target, rememberSession: false });
+    state.auth = response.auth;
+    renderAuth();
+    showNotice('已使用保存的账号密码开始登录', 'success');
+  } catch (error) {
+    renderAuth();
+    showNotice(error.message || '请先在校园登录页输入并保存密码');
   }
 }
 
@@ -2149,146 +2273,8 @@ function schoolCourseQuery() {
   };
 }
 
-const ATTENDANCE_STATUS_NAMES = {
-  NORMAL: '正常', ABSENT: '缺勤', ABSENCE: '缺勤', LATE: '迟到', LEAVE: '请假', PENDING: '待考勤', NOT_REQUIRED: '不考勤'
-};
-
-function attendanceStatusName(status) {
-  return ATTENDANCE_STATUS_NAMES[String(status || '').toUpperCase()] || '未知';
-}
-
-async function attendanceTab() {
-  const tabs = await chrome.tabs.query({});
-  const matches = tab => {
-    try { return ['bk-kq.xjtu.edu.cn', 'yjs-kq.xjtu.edu.cn'].includes(new URL(tab.url || '').hostname); } catch { return false; }
-  };
-  return tabs.find(tab => tab.active && matches(tab)) || tabs.find(matches) || null;
-}
-
-function renderAttendance() {
-  const stateElement = $('#attendance-state');
-  const summary = $('#attendance-summary');
-  const recordsElement = $('#attendance-records');
-  const termSelect = $('#attendance-term');
-  const courseSelect = $('#attendance-course-filter');
-  if (!stateElement || !summary || !recordsElement || !courseSelect || !termSelect) return;
-  summary.replaceChildren();
-  recordsElement.replaceChildren();
-  if (attendanceLoading) {
-    stateElement.textContent = '正在读取当前学期考勤…';
-    return;
-  }
-  if (!attendanceData) {
-    stateElement.textContent = '点击读取即可后台复用已登录会话；首次使用请先完成一次考勤认证。';
-    recordsElement.innerHTML = '<div class="attendance-empty">暂无考勤数据</div>';
-    return;
-  }
-  const previousTerm = termSelect.value;
-  termSelect.replaceChildren();
-  for (const semester of attendanceData.semesters || []) {
-    const option = document.createElement('option');
-    option.value = semester.id;
-    option.textContent = semester.name || semester.id;
-    termSelect.append(option);
-  }
-  termSelect.value = attendanceData.currentSemester?.id || previousTerm || attendanceData.semesters?.[0]?.id || '';
-  const records = Array.isArray(attendanceData.records) ? attendanceData.records : [];
-  const allCourses = [...new Set(records.map(row => row.course).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
-  const previousCourse = attendanceCourseFilter;
-  courseSelect.replaceChildren();
-  const allOption = document.createElement('option');
-  allOption.value = 'all';
-  allOption.textContent = '全部课程';
-  courseSelect.append(allOption);
-  for (const course of allCourses) {
-    const option = document.createElement('option');
-    option.value = course;
-    option.textContent = course;
-    courseSelect.append(option);
-  }
-  attendanceCourseFilter = allCourses.includes(previousCourse) ? previousCourse : 'all';
-  courseSelect.value = attendanceCourseFilter;
-  const counts = records.reduce((result, row) => {
-    const key = String(row.status || '').toUpperCase();
-    result[key] = (result[key] || 0) + 1;
-    return result;
-  }, {});
-  const cards = [
-    ['涉及课程', allCourses.length],
-    ['缺勤', counts.ABSENT || counts.ABSENCE || 0],
-    ['迟到', counts.LATE || 0],
-    ['请假', counts.LEAVE || 0],
-    ['待考勤', counts.PENDING || 0]
-  ];
-  for (const [label, value] of cards) {
-    const card = document.createElement('div');
-    card.className = 'summary-card';
-    const number = document.createElement('strong');
-    number.textContent = String(value);
-    const title = document.createElement('span');
-    title.textContent = label;
-    card.append(number, title);
-    summary.append(card);
-  }
-  const filtered = records.filter(row => (attendanceCourseFilter === 'all' || row.course === attendanceCourseFilter) &&
-    (attendanceStatusFilter === 'all' || String(row.status).toUpperCase() === attendanceStatusFilter));
-  const term = attendanceData.currentSemester?.name || '当前学期';
-  stateElement.textContent = `${term} · 共 ${records.length} 条记录${filtered.length !== records.length ? ` · 当前显示 ${filtered.length} 条` : ''}`;
-  const header = document.createElement('div');
-  header.className = 'attendance-row attendance-row-head';
-  for (const text of ['日期', '课程', '节次', '教室 · 教师', '状态']) {
-    const cell = document.createElement('span');
-    cell.textContent = text;
-    header.append(cell);
-  }
-  recordsElement.append(header);
-  const sorted = [...filtered].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-  for (const record of sorted) {
-    const row = document.createElement('div');
-    row.className = 'attendance-row';
-    const date = document.createElement('span');
-    date.textContent = record.date || '日期待定';
-    const course = document.createElement('span');
-    course.className = 'attendance-course';
-    course.textContent = record.course || '未命名课程';
-    const section = document.createElement('span');
-    section.className = 'attendance-meta';
-    section.textContent = record.startSection ? `第 ${record.startSection}-${record.endSection || record.startSection} 节` : '节次待定';
-    const place = document.createElement('span');
-    place.className = 'attendance-meta';
-    place.textContent = [record.classroom, record.teacher].filter(Boolean).join(' · ') || '地点待定';
-    const status = document.createElement('span');
-    status.className = `attendance-status attendance-status-${String(record.status || '').toUpperCase()}`;
-    status.textContent = attendanceStatusName(record.status);
-    row.append(date, course, section, place, status);
-    recordsElement.append(row);
-  }
-  if (!sorted.length) {
-    const empty = document.createElement('div');
-    empty.className = 'attendance-empty';
-    empty.textContent = '没有符合筛选条件的记录';
-    recordsElement.append(empty);
-  }
-}
-
-async function loadAttendance() {
-  attendanceLoading = true;
-  renderAttendance();
-  try {
-    const tab = await attendanceTab();
-    const response = await call({ type: 'GET_ATTENDANCE_OVERVIEW', tabId: tab?.id || 0, query: { semesterId: $('#attendance-term')?.value || '' } });
-    attendanceData = response.data;
-    showNotice('考勤数据已更新', 'success');
-  } catch (error) {
-    attendanceData = null;
-    showNotice(error.message);
-  } finally {
-    attendanceLoading = false;
-    renderAttendance();
-  }
-}
-
 for (const button of document.querySelectorAll('.nav-button')) button.addEventListener('click', () => switchView(button.dataset.view));
+for (const button of document.querySelectorAll('[data-open-login]')) button.addEventListener('click', openLoginFromInterface);
 for (const button of document.querySelectorAll('.queue-selected')) button.addEventListener('click', queueSelected);
 for (const button of document.querySelectorAll('[data-resource-view]')) {
   button.addEventListener('click', () => {
@@ -2309,6 +2295,7 @@ $('#collapse-resources').addEventListener('click', () => {
   }
 });
 $('#resource-search').addEventListener('input', renderCatalog);
+$('#homework-refresh').addEventListener('click', loadHomework);
 $('#course-search').addEventListener('input', event => {
   courseSearchQuery = event.target.value;
   renderCourseList();
@@ -2326,26 +2313,14 @@ $('#task-search').addEventListener('input', renderTasks);
 $('#task-state-filter').addEventListener('change', renderTasks);
 $('#campus-refresh').addEventListener('click', loadCampus);
 $('#school-course-query').addEventListener('click', () => loadSchoolCourses(schoolCourseQuery()));
-$('#attendance-term').addEventListener('change', loadAttendance);
 $('#campus-grade-term').addEventListener('change', event => {
   gradeTermFilter = event.target.value;
   renderCampus();
 });
-$('#attendance-refresh').addEventListener('click', loadAttendance);
-$('#attendance-course-filter').addEventListener('change', event => {
-  attendanceCourseFilter = event.target.value;
-  renderAttendance();
-});
-$('#attendance-status-filter').addEventListener('change', event => {
-  attendanceStatusFilter = event.target.value;
-  renderAttendance();
-});
 for (const [code, name] of LIBRARY_FLOORS) $('#library-floor').append(new Option(name, code));
 $('#library-refresh').addEventListener('click', loadLibrary);
 $('#library-seat-search').addEventListener('input', renderLibrary);
-$('#card-refresh').addEventListener('click', loadCard);
 $('#inbox-refresh').addEventListener('click', loadInbox);
-$('#personal-refresh').addEventListener('click', loadPersonal);
 for (const button of document.querySelectorAll('[data-today-action]')) button.addEventListener('click', async () => {
   const action = button.dataset.todayAction;
   if (action === 'classrooms') {
@@ -2406,9 +2381,12 @@ $('#zyxf-browse-root').addEventListener('click', () => loadZyxfFolder(0));
 $('#scan-courses').addEventListener('click', async () => {
   try {
     const tabs = await chrome.tabs.query({});
-    const tab = tabs.find(item => item.id === state.catalog.sourceTabId && item.url?.startsWith('https://lms.xjtu.edu.cn/')) ||
-      tabs.find(item => item.url?.startsWith('https://lms.xjtu.edu.cn/'));
-    if (!tab) throw new Error('请先打开并登录思源学堂');
+    const isLearningPlatform = item => {
+      try { return ['lms.xjtu.edu.cn', 'ispace.xjtu.edu.cn'].includes(new URL(item.url || '').hostname); } catch { return false; }
+    };
+    const tab = tabs.find(item => item.id === state.catalog.sourceTabId && isLearningPlatform(item)) ||
+      tabs.find(isLearningPlatform);
+    if (!tab) throw new Error('请先打开并登录思源学堂或思源学习空间');
     await call({ type: 'SCAN_COURSES', tabId: tab.id });
     await loadState();
     showNotice('完整文件扫描完成', 'success');
@@ -2463,14 +2441,12 @@ const initialParams = new URLSearchParams(location.search);
 const initialView = initialParams.get('view');
 const initialDisplay = initialParams.get('display');
 if (['activities', 'sources', 'calendar'].includes(initialDisplay)) resourceView = initialDisplay;
-switchView(['resources', 'courses', 'campus', 'school-courses', 'attendance', 'library', 'card', 'inbox', 'personal', 'classrooms', 'portal', 'zyxf', 'tasks', 'login', 'settings'].includes(initialView) ? initialView : 'resources');
+switchView(['resources', 'homework', 'courses', 'campus', 'school-courses', 'library', 'inbox', 'classrooms', 'portal', 'zyxf', 'tasks', 'login', 'settings'].includes(initialView) ? initialView : 'resources');
+renderHomework();
 renderCampus();
 renderSchoolCourses();
-renderAttendance();
 renderLibrary();
-renderCard();
 renderInbox();
-renderPersonal();
 renderClassrooms();
 if (initialView === 'classrooms') loadClassroomCodes();
 if (initialView === 'school-courses') loadSchoolCourses({ metaOnly: true });
