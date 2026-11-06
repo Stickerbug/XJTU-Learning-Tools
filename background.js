@@ -71,8 +71,94 @@ const AUTH_TARGETS = {
   ywtb: { label: '一网通办', url: YWTB_HOME_URL, hosts: ['ywtb.xjtu.edu.cn'] }
 };
 const AUTH_FLOW_STORAGE_KEY = 'authFlow';
+const AUTH_VAULT_KEY = 'authVault';
+const AUTH_KEY_DB = 'xjtu-learning-tools-auth';
+const AUTH_KEY_STORE = 'keys';
 let authFlow = null;
 let authSessionCredentials = null;
+let authSaved = false;
+
+function openAuthKeyDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(AUTH_KEY_DB, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(AUTH_KEY_STORE);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error('无法打开本地加密存储'));
+  });
+}
+
+function authKeyRequest(mode, operation) {
+  return openAuthKeyDatabase().then(db => new Promise((resolve, reject) => {
+    const transaction = db.transaction(AUTH_KEY_STORE, mode);
+    const request = operation(transaction.objectStore(AUTH_KEY_STORE));
+    request.onsuccess = () => { db.close(); resolve(request.result); };
+    request.onerror = () => { db.close(); reject(request.error || new Error('本地加密存储操作失败')); };
+  }));
+}
+
+async function authCryptoKey() {
+  let key = await authKeyRequest('readonly', store => store.get('master'));
+  if (key) return key;
+  key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  await authKeyRequest('readwrite', store => store.put(key, 'master'));
+  return key;
+}
+
+function authBase64(bytes) {
+  let value = '';
+  for (const byte of new Uint8Array(bytes)) value += String.fromCharCode(byte);
+  return btoa(value);
+}
+
+function authBytes(value) {
+  const binary = atob(value);
+  return Uint8Array.from(binary, character => character.charCodeAt(0));
+}
+
+async function savePersistentAuth(credentials) {
+  const key = await authCryptoKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv }, key, new TextEncoder().encode(String(credentials.password))
+  );
+  await chrome.storage.local.set({
+    [AUTH_VAULT_KEY]: { version: 1, username: String(credentials.username), iv: authBase64(iv), ciphertext: authBase64(ciphertext), updatedAt: Date.now() }
+  });
+  authSaved = true;
+}
+
+async function loadPersistentAuth() {
+  const stored = await chrome.storage.local.get(AUTH_VAULT_KEY);
+  const vault = stored?.[AUTH_VAULT_KEY];
+  if (!vault?.iv || !vault?.ciphertext || !vault?.username) {
+    authSaved = false;
+    return null;
+  }
+  try {
+    const key = await authCryptoKey();
+    const plaintext = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: authBytes(vault.iv) }, key, authBytes(vault.ciphertext)
+    );
+    authSaved = true;
+    return { username: String(vault.username), password: new TextDecoder().decode(plaintext) };
+  } catch {
+    authSaved = true;
+    throw new Error('已保存的密码无法解密，请清除后重新保存');
+  }
+}
+
+async function refreshAuthSavedState() {
+  try {
+    const stored = await chrome.storage.local.get(AUTH_VAULT_KEY);
+    authSaved = Boolean(stored?.[AUTH_VAULT_KEY]?.ciphertext);
+  } catch {}
+  return authSaved;
+}
+
+async function clearPersistentAuth() {
+  await chrome.storage.local.remove(AUTH_VAULT_KEY);
+  authSaved = false;
+}
 
 async function persistAuthFlow(flow = authFlow) {
   if (!flow?.id || !flow.tabId || ['success', 'failed', 'canceled'].includes(flow.status)) return;
@@ -113,7 +199,7 @@ async function restoreAuthFlow() {
 }
 
 function publicAuthState() {
-  if (!authFlow) return { status: 'idle', target: '', username: '', message: '', canOpen: false, remembered: false };
+  if (!authFlow) return { status: 'idle', target: '', username: '', message: '', canOpen: false, remembered: false, saved: authSaved };
   return {
     status: authFlow.status,
     target: authFlow.target,
@@ -121,6 +207,7 @@ function publicAuthState() {
     message: authFlow.message || '',
     canOpen: Number.isInteger(authFlow.tabId),
     remembered: Boolean(authFlow.rememberSession),
+    saved: authSaved,
     updatedAt: authFlow.updatedAt || null
   };
 }
@@ -139,15 +226,19 @@ async function loadAuthSessionCredentials() {
     const value = stored?.authCredentials;
     if (value?.username && value?.password) authSessionCredentials = { username: String(value.username), password: String(value.password) };
   } catch {}
+  if (authSessionCredentials) return authSessionCredentials;
+  authSessionCredentials = await loadPersistentAuth();
   return authSessionCredentials;
 }
 
 async function saveAuthSessionCredentials(credentials, remember) {
-  authSessionCredentials = remember ? credentials : null;
+  authSessionCredentials = null;
   try {
-    if (remember) await chrome.storage.session.set({ authCredentials: credentials });
-    else await chrome.storage.session.remove('authCredentials');
+    await chrome.storage.session.remove('authCredentials');
   } catch {}
+  if (remember) {
+    try { await savePersistentAuth(credentials); } catch { authSaved = false; }
+  }
 }
 
 function authTarget(target) {
@@ -1130,6 +1221,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     switch (message.type) {
       case 'AUTH_GET_STATE':
         await restoreAuthFlow();
+        await refreshAuthSavedState();
         return { ok: true, auth: publicAuthState() };
       case 'AUTH_START':
         return { ok: true, auth: await startAuth(message) };
@@ -1144,8 +1236,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case 'AUTH_CANCEL':
         await restoreAuthFlow();
         return { ok: true, auth: await cancelAuth() };
+      case 'AUTH_CLEAR_SAVED':
+        await clearPersistentAuth();
+        authSessionCredentials = null;
+        try { await chrome.storage.session.remove('authCredentials'); } catch {}
+        broadcast();
+        return { ok: true, auth: publicAuthState() };
       case 'GET_STATE':
         await restoreAuthFlow();
+        await refreshAuthSavedState();
         await syncDownloads();
         return { ok: true, ...publicState() };
       case 'GET_ACTIVITY_CONTEXT': {

@@ -4,7 +4,7 @@
 
 - 中文名称：仙交学习工具
 - 英文名称：XJTU Learning Tools
-- 当前版本：0.4.12
+- 当前版本：0.4.13
 - 目标 GitHub 仓库：https://github.com/Stickerbug/XJTU-Learning-Tools
 - 目标工作目录（由后续对话执行）：`D:\XJTU Learning Tools`
 - 项目形态：Chrome / Edge Manifest V3 浏览器扩展，无业务后端。

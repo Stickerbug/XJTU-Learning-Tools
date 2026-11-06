@@ -104,6 +104,7 @@ select, input { min-height: 34px; padding: 5px 8px; color: var(--ink); backgroun
 .login-form .check-row { flex-direction: row; align-items: center; gap: 8px; min-height: 34px; }
 .login-form .check-row input { width: 15px; min-height: 15px; accent-color: var(--blue); }
 .login-form #auth-start { align-self: end; justify-self: start; }
+.login-form #auth-clear-saved { align-self: end; justify-self: start; }
 .auth-state { min-height: 48px; margin-top: 20px; padding: 12px 14px; color: var(--muted); background: #f7f7f7; border-left: 3px solid #aebdca; line-height: 1.5; }
 .auth-state.is-online { color: #18733a; background: #eef8f1; border-left-color: #2d9550; }
 .auth-state.is-waiting { color: #8a5b00; background: #fff9e9; border-left-color: #d89c22; }

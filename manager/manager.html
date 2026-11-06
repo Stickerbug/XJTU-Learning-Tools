@@ -418,13 +418,14 @@
       <div class="login-panel">
         <div class="login-form">
           <label>学号<input id="auth-username" inputmode="numeric" autocomplete="username" maxlength="64" placeholder="学号或统一认证账号"></label>
-          <label>密码<input id="auth-password" type="password" autocomplete="current-password" maxlength="128" placeholder="仅在本次登录过程中使用"></label>
+          <label>密码<input id="auth-password" type="password" autocomplete="current-password" maxlength="128" placeholder="输入后不会回显"></label>
           <label>目标系统<select id="auth-target"><option value="jwxt">教务系统</option><option value="ywtb">一网通办</option></select></label>
-          <label class="check-row"><input id="auth-remember" type="checkbox">本次浏览器会话记住密码</label>
+          <label class="check-row"><input id="auth-remember" type="checkbox">保存密码（加密）</label>
           <button id="auth-start" class="button primary" type="button">一键登录</button>
+          <button id="auth-clear-saved" class="button secondary small" type="button" hidden>清除已保存密码</button>
         </div>
         <div id="auth-state" class="auth-state" role="status" aria-live="polite">尚未登录。已有浏览器会话时，直接读取数据即可。</div>
-        <p class="muted login-note">密码不会写入扩展本地数据；勾选后只保存在当前浏览器会话，关闭浏览器后自动清除。验证码、二次验证和身份选择仍由学校认证页处理。</p>
+        <p class="muted login-note">保存后密码以 AES-GCM 密文留在本机，界面不会回显密码；清除后下次登录重新输入。验证码、二次验证和身份选择仍由学校认证页处理。</p>
       </div>
     </section>
 

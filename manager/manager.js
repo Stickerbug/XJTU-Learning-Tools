@@ -1605,17 +1605,19 @@ function renderAuth() {
   const start = $('#auth-start');
   const open = $('#auth-open-tab');
   const cancel = $('#auth-cancel');
-  if (!stateElement || !start || !open || !cancel) return;
-  const auth = state.auth || { status: 'idle', message: '' };
+  const clear = $('#auth-clear-saved');
+  if (!stateElement || !start || !open || !cancel || !clear) return;
+  const auth = state.auth || { status: 'idle', message: '', saved: false };
   const names = { starting: '准备登录…', submitting: '正在完成认证…', waiting_verification: '需要处理认证', success: '已登录', failed: '登录失败', canceled: '已取消', idle: '尚未登录' };
   stateElement.className = `auth-state ${auth.status === 'success' ? 'is-online' : auth.status === 'waiting_verification' ? 'is-waiting' : ['failed', 'canceled'].includes(auth.status) ? 'is-error' : ''}`;
-  const fallback = auth.status === 'success' ? '浏览器会话已建立，读取校园数据时会直接复用。' : '已有浏览器会话时，直接读取数据即可。';
+  const fallback = auth.status === 'success' ? '浏览器会话已建立，读取校园数据时会直接复用。' : auth.saved ? '已保存加密密码，可直接点击登录。' : '已有浏览器会话时，直接读取数据即可。';
   stateElement.textContent = `${names[auth.status] || auth.status}${auth.message ? ` · ${auth.message}` : ` · ${fallback}`}`;
   const busy = ['starting', 'submitting'].includes(auth.status);
   start.disabled = busy;
   start.textContent = busy ? '登录中…' : auth.status === 'success' ? '重新登录' : '一键登录';
   open.hidden = !auth.canOpen || !['waiting_verification', 'failed'].includes(auth.status);
   cancel.hidden = !['starting', 'submitting', 'waiting_verification'].includes(auth.status);
+  clear.hidden = !auth.saved || busy;
   if (auth.username && !$('#auth-username').value) $('#auth-username').value = auth.username;
 }
 
@@ -1625,12 +1627,16 @@ async function startAuth() {
   try {
     const username = $('#auth-username').value.trim();
     const password = $('#auth-password').value;
+    const rememberSession = $('#auth-remember').checked;
+    if (rememberSession && username) {
+      await call({ type: 'SAVE_SETTINGS', settings: { ...state.settings, username } });
+    }
     const response = await call({
       type: 'AUTH_START',
       username,
       password,
       target: $('#auth-target').value,
-      rememberSession: $('#auth-remember').checked
+      rememberSession
     });
     state.auth = response.auth;
     $('#auth-password').value = '';
@@ -1659,6 +1665,17 @@ async function cancelAuth() {
     const response = await call({ type: 'AUTH_CANCEL' });
     state.auth = response.auth;
     renderAuth();
+  } catch (error) {
+    showNotice(error.message);
+  }
+}
+
+async function clearSavedAuth() {
+  try {
+    const response = await call({ type: 'AUTH_CLEAR_SAVED' });
+    state.auth = response.auth;
+    renderAuth();
+    showNotice('已清除保存的密码', 'success');
   } catch (error) {
     showNotice(error.message);
   }
@@ -2304,6 +2321,7 @@ $('#session-check').addEventListener('click', checkSession);
 $('#auth-start').addEventListener('click', startAuth);
 $('#auth-open-tab').addEventListener('click', openAuthTab);
 $('#auth-cancel').addEventListener('click', cancelAuth);
+$('#auth-clear-saved').addEventListener('click', clearSavedAuth);
 $('#task-search').addEventListener('input', renderTasks);
 $('#task-state-filter').addEventListener('change', renderTasks);
 $('#campus-refresh').addEventListener('click', loadCampus);
